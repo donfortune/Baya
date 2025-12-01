@@ -5,6 +5,7 @@ const pollController = require('../Controllers/pollController');
 router.get('/polls', pollController.getAllPolls);
 router.post('/polls', pollController.createPoll);
 router.get('/polls/:pollId', pollController.getPollDetails);
-router.get('/polls/room/:roomCode', pollController.getPollByRoomCode);
+router.get('/polls/room/:roomCode', pollController.getPollByRoomCode); 
+router.patch('/polls/:pollId/status', pollController.updatePollStatus);
 
 module.exports = router;

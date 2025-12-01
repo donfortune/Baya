@@ -40,7 +40,8 @@ exports.getAllPolls = async (req, res) => {
             title: p.question,
             options: p.options,
             votes: p.votes,
-            createdAt: p.createdAt
+            createdAt: p.createdAt,
+            status: p.status
         }));
 
         res.status(200).json({
@@ -140,6 +141,11 @@ exports.createPoll = async (req, res) => {
             }
         }
 
+        await poll.updateMany(
+            { roomCode: finalRoomCode, status: "active" },
+            { status: "closed", closedAt: new Date() }
+        );
+
         // Create the poll
         const newPoll = new poll({
             question,
@@ -188,7 +194,7 @@ exports.getPollDetails = async (req, res) => {
 exports.getPollByRoomCode = async (req, res) => {
     try {
         const { roomCode } = req.params;
-        const pollDetails = await poll.findOne({ roomCode: roomCode });
+        const pollDetails = await poll.find({ roomCode: roomCode });
 
         if (!pollDetails) {
             return res.status(404).json({ success: false, message: `Poll with Room Code ${roomCode} not found` });
@@ -203,3 +209,33 @@ exports.getPollByRoomCode = async (req, res) => {
         res.status(500).json({ success: false, message: 'Server Error' });
     }
 }
+
+
+exports.updatePollStatus = async (req, res) => {
+    try {
+        const { pollId } = req.params;
+        const { status } = req.body;
+
+        if (!["active", "closed"].includes(status)) {
+            return res.status(400).json({
+                message: "Status must be 'active' or 'closed'"
+            });
+        }
+
+        const updated = await poll.findOneAndUpdate(
+            { pollId },
+            { status, closedAt: status === "closed" ? new Date() : null },
+            { new: true }
+        );
+
+        if (!updated) {
+            return res.status(404).json({ message: "Poll not found" });
+        }
+
+        res.status(200).json(updated);
+
+    } catch (error) {
+        console.error("Error updating poll status:", error);
+        res.status(500).json({ message: "Server Error" });
+    }
+};

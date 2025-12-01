@@ -17,8 +17,8 @@ const pollSchema = new Schema({
     closedAt: { type: Date, default: null },
     options: [{ type: String }],  // ← Just text: ["36", "37"]
     votes: [{ type: Number, default: 0 }],  // ← Just counts: [0, 0]
-    // options: [{ _id: false, option: String }],
-    // votes: [{ _id: false, option: String, votes: { type: Number, default: 0 } }],
+    
+  
 }, { timestamps: true });
 
 pollSchema.pre('save', function(next) {
