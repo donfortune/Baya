@@ -239,3 +239,50 @@ exports.updatePollStatus = async (req, res) => {
         res.status(500).json({ message: "Server Error" });
     }
 };
+
+
+exports.votePoll = async (req, res) => {
+    try {
+        const { pollId } = req.params;
+        const { option } = req.body;
+        const voterId = req.ip; // or req.user.id if authenticated
+
+        const pollDetails = await poll.findOne({ pollId });
+
+        if (!pollDetails) {
+            return res.status(404).json({ message: "Poll not found" });
+        }
+
+        if (pollDetails.status !== "active") {
+            return res.status(400).json({ message: "Poll is not active" });
+        }
+
+        const optionIndex = pollDetails.options.indexOf(option);
+        if (optionIndex === -1) {
+            return res.status(400).json({ message: "Invalid option" });
+        }
+
+        // Prevent double voting
+        if (pollDetails.voters.includes(voterId)) {
+            return res.status(400).json({ message: "You have already voted" });
+        }
+
+        // Add voter
+        pollDetails.voters.push(voterId);
+
+        // Increment vote count
+        pollDetails.votes[optionIndex] += 1;
+
+        await pollDetails.save();
+
+        res.status(200).json({
+            message: "Vote recorded",
+            poll: pollDetails
+        });
+
+    } catch (error) {
+        console.error("Error voting on poll:", error);
+        res.status(500).json({ message: "Server Error" });
+    }
+};
+

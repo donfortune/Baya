@@ -7,5 +7,6 @@ router.post('/polls', pollController.createPoll);
 router.get('/polls/:pollId', pollController.getPollDetails);
 router.get('/polls/room/:roomCode', pollController.getPollByRoomCode); 
 router.patch('/polls/:pollId/status', pollController.updatePollStatus);
+router.post('/polls/:pollId/vote', pollController.votePoll);
 
 module.exports = router;
