@@ -245,7 +245,10 @@ exports.votePoll = async (req, res) => {
     try {
         const { pollId } = req.params;
         const { option } = req.body;
-        const voterId = req.ip; // or req.user.id if authenticated
+        // const voterId = req.ip; // or req.user.id if authenticated
+
+        const { userId } = req.body;  // Get from request body
+        const voterId = userId || req.ip;  // Fallback to IP if no userId
 
         const pollDetails = await poll.findOne({ pollId });
 
@@ -263,9 +266,9 @@ exports.votePoll = async (req, res) => {
         }
 
         // Prevent double voting
-        if (pollDetails.voters.includes(voterId)) {
-            return res.status(400).json({ message: "You have already voted" });
-        }
+        // if (pollDetails.voters.includes(voterId)) {
+        //     return res.status(400).json({ message: "You have already voted" });
+        // }
 
         // Add voter
         pollDetails.voters.push(voterId);

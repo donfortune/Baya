@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Baya - Real-Time Polling</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .fade-in {
+            animation: fadeIn 0.3s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .pulse-ring {
+            animation: pulse-ring 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse-ring {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .5; }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen">
+    <div id="app"></div>
+
+    <script>
+        // ===== CONFIGURATION =====
+        const API_BASE_URL = 'http://localhost:3000/api';
+
+        // ===== STATE MANAGEMENT =====
+        let currentView = 'home';
+        let currentPoll = null;
+        let userId = localStorage.getItem('baya_user_id') || `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        localStorage.setItem('baya_user_id', userId);
+        let pollRefreshInterval = null;
+
+        // ===== API CALLS =====
+        async function createPoll(question, options) {
+            const response = await fetch(`${API_BASE_URL}/polls`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ question, options })
+            });
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.message || 'Failed to create poll');
+            }
+            return await response.json();
+        }
+
+        async function getPollByRoomCode(roomCode) {
+            const response = await fetch(`${API_BASE_URL}/polls/room/${roomCode.toUpperCase()}`);
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.message || 'Poll not found');
+            }
+            return await response.json();
+        }
+
+        async function getPollDetails(pollId) {
+            const response = await fetch(`${API_BASE_URL}/polls/${pollId}`);
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.message || 'Poll not found');
+            }
+            return await response.json();
+        }
+
+        async function submitVote(pollId, option) {
+            const response = await fetch(`${API_BASE_URL}/polls/${pollId}/vote`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ option })
+            });
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.message || 'Failed to vote');
+            }
+            return await response.json();
+        }
+
+        // ===== RENDER FUNCTIONS =====
+        function render() {
+            const app = document.getElementById('app');
+            
+            if (currentView === 'home') {
+                app.innerHTML = renderHome();
+            } else if (currentView === 'lecturer-create') {
+                app.innerHTML = renderLecturerCreate();
+            } else if (currentView === 'lecturer-results') {
+                app.innerHTML = renderLecturerResults();
+            } else if (currentView === 'student-join') {
+                app.innerHTML = renderStudentJoin();
+            } else if (currentView === 'student-vote') {
+                app.innerHTML = renderStudentVote();
+            } else if (currentView === 'student-results') {
+                app.innerHTML = renderStudentResults();
+            }
+        }
+
+        function renderHome() {
+            return `
+                <div class="min-h-screen flex items-center justify-center p-4 fade-in">
+                    <div class="max-w-4xl w-full">
+                        <div class="text-center mb-12">
+                            <h1 class="text-6xl font-bold text-indigo-900 mb-4">Baya</h1>
+                            <p class="text-xl text-gray-600">Real-time polling for Nigerian universities</p>
+                            <p class="text-sm text-gray-500 mt-2">In memory of Grandma ❤️</p>
+                        </div>
+
+                        <div class="grid md:grid-cols-2 gap-6">
+                            <button onclick="goToView('lecturer-create')" 
+                                class="bg-white p-8 rounded-xl shadow-lg hover:shadow-2xl transition-all hover:-translate-y-2 group">
+                                <div class="text-6xl mb-4">📊</div>
+                                <h2 class="text-2xl font-bold text-gray-800 mb-2 group-hover:text-indigo-600">I'm a Lecturer</h2>
+                                <p class="text-gray-600">Create polls and see live results</p>
+                            </button>
+
+                            <button onclick="goToView('student-join')" 
+                                class="bg-white p-8 rounded-xl shadow-lg hover:shadow-2xl transition-all hover:-translate-y-2 group">
+                                <div class="text-6xl mb-4">🎓</div>
+                                <h2 class="text-2xl font-bold text-gray-800 mb-2 group-hover:text-green-600">I'm a Student</h2>
+                                <p class="text-gray-600">Join a poll with room code</p>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderLecturerCreate() {
+            return `
+                <div class="min-h-screen p-4 fade-in">
+                    <div class="max-w-2xl mx-auto">
+                        <button onclick="goToView('home')" class="mb-6 text-indigo-600 hover:text-indigo-800 font-semibold">
+                            ← Back to Home
+                        </button>
+
+                        <div class="bg-white rounded-xl shadow-lg p-8">
+                            <h2 class="text-3xl font-bold text-gray-800 mb-6">Create a Poll</h2>
+
+                            <div id="error-message" class="hidden mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm"></div>
+
+                            <form onsubmit="handleCreatePoll(event)" class="space-y-6">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                                        Poll Question *
+                                    </label>
+                                    <input 
+                                        type="text" 
+                                        id="question" 
+                                        required
+                                        placeholder="e.g., How many states are in Nigeria?"
+                                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                                        Options * (minimum 2)
+                                    </label>
+                                    <div id="options-container">
+                                        <input type="text" class="option-input w-full px-4 py-3 border border-gray-300 rounded-lg mb-3 focus:ring-2 focus:ring-indigo-500" placeholder="Option 1" required />
+                                        <input type="text" class="option-input w-full px-4 py-3 border border-gray-300 rounded-lg mb-3 focus:ring-2 focus:ring-indigo-500" placeholder="Option 2" required />
+                                    </div>
+                                    <button type="button" onclick="addOption()" class="text-indigo-600 hover:text-indigo-800 font-semibold">
+                                        + Add Option
+                                    </button>
+                                </div>
+
+                                <button 
+                                    type="submit" 
+                                    class="w-full bg-indigo-600 text-white py-3 rounded-lg font-semibold hover:bg-indigo-700 transition-colors"
+                                >
+                                    Create Poll
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderLecturerResults() {
+            if (!currentPoll) return '';
+
+            const totalVotes = currentPoll.votes.reduce((sum, v) => sum + v, 0);
+            const maxVotes = Math.max(...currentPoll.votes, 1);
+
+            return `
+                <div class="min-h-screen p-4 fade-in">
+                    <div class="max-w-4xl mx-auto">
+                        <button onclick="goToView('home')" class="mb-6 text-indigo-600 hover:text-indigo-800 font-semibold">
+                            ← Create New Poll
+                        </button>
+
+                        <div class="bg-white rounded-xl shadow-lg p-8">
+                            <div class="flex items-center justify-between mb-6">
+                                <h2 class="text-2xl font-bold text-gray-800">Live Results</h2>
+                                <div class="flex items-center gap-2 text-green-600">
+                                    <div class="w-3 h-3 bg-green-600 rounded-full pulse-ring"></div>
+                                    <span class="font-semibold">LIVE</span>
+                                </div>
+                            </div>
+
+                            <div class="bg-indigo-50 p-6 rounded-lg mb-6 text-center">
+                                <p class="text-sm text-gray-600 mb-2">Room Code</p>
+                                <p class="text-5xl font-bold text-indigo-600 tracking-wider">${currentPoll.roomCode}</p>
+                                <p class="text-sm text-gray-600 mt-4">
+                                    👥 ${totalVotes} ${totalVotes === 1 ? 'vote' : 'votes'}
+                                </p>
+                            </div>
+
+                            <h3 class="text-xl font-semibold text-gray-800 mb-4">${currentPoll.question}</h3>
+
+                            <div class="space-y-4">
+                                ${currentPoll.options.map((option, index) => {
+                                    const votes = currentPoll.votes[index];
+                                    const percentage = totalVotes > 0 ? ((votes / totalVotes) * 100).toFixed(1) : 0;
+                                    const barWidth = totalVotes > 0 ? (votes / maxVotes * 100) : 0;
+
+                                    return `
+                                        <div>
+                                            <div class="flex justify-between mb-2">
+                                                <span class="font-medium text-gray-700">${option}</span>
+                                                <span class="text-gray-600">${votes} (${percentage}%)</span>
+                                            </div>
+                                            <div class="w-full bg-gray-200 rounded-full h-8 overflow-hidden">
+                                                <div class="bg-gradient-to-r from-indigo-500 to-purple-500 h-full rounded-full transition-all duration-500 flex items-center justify-end px-3"
+                                                    style="width: ${barWidth}%">
+                                                    ${votes > 0 ? `<span class="text-white font-semibold text-sm">${votes}</span>` : ''}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+
+                            <div class="mt-6 text-center text-sm text-gray-500">
+                                Auto-refreshing every 3 seconds...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderStudentJoin() {
+            return `
+                <div class="min-h-screen p-4 flex items-center justify-center fade-in">
+                    <div class="max-w-md w-full">
+                        <button onclick="goToView('home')" class="mb-6 text-green-600 hover:text-green-800 font-semibold">
+                            ← Back to Home
+                        </button>
+
+                        <div class="bg-white rounded-xl shadow-lg p-8">
+                            <div class="text-6xl text-center mb-6">🔑</div>
+                            <h2 class="text-3xl font-bold text-gray-800 mb-6 text-center">Join Poll</h2>
+
+                            <div id="error-message" class="hidden mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm"></div>
+
+                            <form onsubmit="handleJoinPoll(event)">
+                                <div class="mb-6">
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                                        Enter Room Code
+                                    </label>
+                                    <input 
+                                        type="text" 
+                                        id="roomCode" 
+                                        required
+                                        placeholder="e.g., H7K2MP"
+                                        maxlength="6"
+                                        class="w-full px-4 py-3 border border-gray-300 rounded-lg text-center text-2xl font-bold tracking-wider uppercase focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                                    />
+                                </div>
+
+                                <button 
+                                    type="submit" 
+                                    class="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition-colors"
+                                >
+                                    Join Poll
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderStudentVote() {
+            if (!currentPoll) return '';
+
+            return `
+                <div class="min-h-screen p-4 fade-in">
+                    <div class="max-w-2xl mx-auto">
+                        <button onclick="goToView('student-join')" class="mb-6 text-green-600 hover:text-green-800 font-semibold">
+                            ← Leave Poll
+                        </button>
+
+                        <div class="bg-white rounded-xl shadow-lg p-8">
+                            <div id="error-message" class="hidden mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm"></div>
+
+                            <h2 class="text-2xl font-bold text-gray-800 mb-6">${currentPoll.question}</h2>
+
+                            <div class="space-y-3">
+                                ${currentPoll.options.map((option, index) => `
+                                    <button 
+                                        onclick="handleVote('${option}')"
+                                        class="w-full p-4 border-2 border-gray-300 rounded-lg text-left font-medium hover:border-green-500 hover:bg-green-50 transition-all"
+                                    >
+                                        ${option}
+                                    </button>
+                                `).join('')}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderStudentResults() {
+            if (!currentPoll) return '';
+
+            const totalVotes = currentPoll.votes.reduce((sum, v) => sum + v, 0);
+            const maxVotes = Math.max(...currentPoll.votes, 1);
+
+            return `
+                <div class="min-h-screen p-4 fade-in">
+                    <div class="max-w-2xl mx-auto">
+                        <button onclick="goToView('student-join')" class="mb-6 text-green-600 hover:text-green-800 font-semibold">
+                            ← Join Another Poll
+                        </button>
+
+                        <div class="bg-white rounded-xl shadow-lg p-8">
+                            <div class="flex items-center justify-between mb-6">
+                                <h2 class="text-2xl font-bold text-gray-800">Results</h2>
+                                <div class="flex items-center gap-2 text-green-600">
+                                    <div class="w-3 h-3 bg-green-600 rounded-full pulse-ring"></div>
+                                    <span class="font-semibold">LIVE</span>
+                                </div>
+                            </div>
+
+                            <div class="bg-green-50 p-4 rounded-lg mb-6 text-center">
+                                <p class="text-green-800 font-semibold">✓ Your vote has been recorded!</p>
+                                <p class="text-sm text-gray-600 mt-2">
+                                    ${totalVotes} ${totalVotes === 1 ? 'student has' : 'students have'} voted
+                                </p>
+                            </div>
+
+                            <h3 class="text-lg font-semibold text-gray-800 mb-4">${currentPoll.question}</h3>
+
+                            <div class="space-y-4">
+                                ${currentPoll.options.map((option, index) => {
+                                    const votes = currentPoll.votes[index];
+                                    const percentage = totalVotes > 0 ? ((votes / totalVotes) * 100).toFixed(1) : 0;
+                                    const barWidth = totalVotes > 0 ? (votes / maxVotes * 100) : 0;
+
+                                    return `
+                                        <div>
+                                            <div class="flex justify-between mb-2">
+                                                <span class="font-medium text-gray-700">${option}</span>
+                                                <span class="text-gray-600">${percentage}%</span>
+                                            </div>
+                                            <div class="w-full bg-gray-200 rounded-full h-6 overflow-hidden">
+                                                <div class="bg-gradient-to-r from-green-500 to-teal-500 h-full rounded-full transition-all duration-500"
+                                                    style="width: ${barWidth}%">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+
+                            <div class="mt-6 text-center text-sm text-gray-500">
+                                Results update automatically
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // ===== EVENT HANDLERS =====
+        function goToView(view) {
+            currentView = view;
+            currentPoll = null;
+            
+            // Clear any refresh intervals
+            if (pollRefreshInterval) {
+                clearInterval(pollRefreshInterval);
+                pollRefreshInterval = null;
+            }
+            
+            render();
+        }
+
+        function addOption() {
+            const container = document.getElementById('options-container');
+            const optionCount = container.getElementsByClassName('option-input').length;
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'option-input w-full px-4 py-3 border border-gray-300 rounded-lg mb-3 focus:ring-2 focus:ring-indigo-500';
+            input.placeholder = `Option ${optionCount + 1}`;
+            container.appendChild(input);
+        }
+
+        async function handleCreatePoll(event) {
+            event.preventDefault();
+            
+            const question = document.getElementById('question').value;
+            const optionInputs = document.getElementsByClassName('option-input');
+            const options = Array.from(optionInputs)
+                .map(input => input.value.trim())
+                .filter(option => option.length > 0);
+
+            if (options.length < 2) {
+                showError('Please provide at least 2 options');
+                return;
+            }
+
+            try {
+                const poll = await createPoll(question, options);
+                currentPoll = poll;
+                currentView = 'lecturer-results';
+                render();
+                
+                // Start auto-refresh
+                pollRefreshInterval = setInterval(async () => {
+                    try {
+                        const updated = await getPollDetails(currentPoll.pollId);
+                        currentPoll = updated.data || updated;
+                        render();
+                    } catch (error) {
+                        console.error('Failed to refresh poll:', error);
+                    }
+                }, 3000);
+                
+            } catch (error) {
+                showError(error.message);
+            }
+        }
+
+        async function handleJoinPoll(event) {
+            event.preventDefault();
+            
+            const roomCode = document.getElementById('roomCode').value.toUpperCase();
+
+            try {
+                const response = await getPollByRoomCode(roomCode);
+                currentPoll = response.data ? response.data[0] : response;
+                
+                if (!currentPoll) {
+                    throw new Error('Poll not found');
+                }
+                
+                currentView = 'student-vote';
+                render();
+            } catch (error) {
+                showError(error.message);
+            }
+        }
+
+        async function handleVote(option) {
+            try {
+                const response = await submitVote(currentPoll.pollId, option);
+                currentPoll = response.poll;
+                currentView = 'student-results';
+                render();
+                
+                // Start auto-refresh for results
+                pollRefreshInterval = setInterval(async () => {
+                    try {
+                        const updated = await getPollDetails(currentPoll.pollId);
+                        currentPoll = updated.data || updated;
+                        render();
+                    } catch (error) {
+                        console.error('Failed to refresh results:', error);
+                    }
+                }, 3000);
+                
+            } catch (error) {
+                showError(error.message);
+            }
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error-message');
+            if (errorDiv) {
+                errorDiv.textContent = message;
+                errorDiv.classList.remove('hidden');
+                setTimeout(() => {
+                    errorDiv.classList.add('hidden');
+                }, 5000);
+            }
+        }
+
+        // ===== INITIALIZE =====
+        render();
+    </script>
+</body>
+</html>

@@ -3,10 +3,15 @@ const env = require('dotenv')
 const mongoose = require('mongoose');
 const pollRoutes = require('./Routes/pollRoutes');
 const roomRoutes = require('./Routes/roomRoutes')
+const cors = require('cors');
+
+
 
 
 env.config();
 const app = express();
+
+app.use(cors());
 const port = process.env.PORT 
 
 mongoose.connect(process.env.MONGODB_URI, {
