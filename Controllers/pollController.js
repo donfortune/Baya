@@ -41,7 +41,8 @@ exports.getAllPolls = async (req, res) => {
             options: p.options,
             votes: p.votes,
             createdAt: p.createdAt,
-            status: p.status
+            status: p.status,
+            user: p.user
         }));
 
         res.status(200).json({
@@ -141,13 +142,14 @@ exports.createPoll = async (req, res) => {
             }
         }
 
-        await poll.updateMany(
-            { roomCode: finalRoomCode, status: "active" },
-            { status: "closed", closedAt: new Date() }
-        );
+        // await poll.updateMany(
+        //     { roomCode: finalRoomCode, status: "active" },
+        //     { status: "closed", closedAt: new Date() }
+        // );
 
         // Create the poll
         const newPoll = new poll({
+            user: req.user._id,
             question,
             roomCode: finalRoomCode,
             options,
@@ -232,6 +234,13 @@ exports.updatePollStatus = async (req, res) => {
             return res.status(404).json({ message: "Poll not found" });
         }
 
+        // ============================================================
+        // 🚀 CRITICAL: The Loudspeaker (Socket.io)
+        // ============================================================
+        const io = req.app.get('io');
+        io.to(updated.roomCode).emit('poll_updated', updated);
+        // ============================================================
+
         res.status(200).json(updated);
 
     } catch (error) {
@@ -278,6 +287,19 @@ exports.votePoll = async (req, res) => {
 
         await pollDetails.save();
 
+        // ============================================================
+        // 🚀 THE REAL-TIME INJECTION (The "Loudspeaker")
+        // ============================================================
+        
+        // A. Grab the microphone (Get the IO instance)
+        const io = req.app.get('io');
+
+        // B. Shout to the specific Room (The "Danfo Bus")
+        // We broadcast the ENTIRE updated poll object so the teacher's graph updates instantly
+        io.to(pollDetails.roomCode).emit('poll_updated', pollDetails);
+
+        // ============================================================
+
         res.status(200).json({
             message: "Vote recorded",
             poll: pollDetails
@@ -289,3 +311,29 @@ exports.votePoll = async (req, res) => {
     }
 };
 
+
+exports.resetVotes = async (req, res) => {
+    try {
+        const { pollId } = req.params;
+
+        const pollDetails = await poll.findOne({ pollId });
+
+        if (!pollDetails) {
+            return res.status(404).json({ message: "Poll not found" });
+        }
+
+        // Reset votes and voters
+        pollDetails.votes = pollDetails.options.map(() => 0);
+        pollDetails.voters = [];
+
+        await pollDetails.save();
+
+        res.status(200).json({
+            message: "Votes cleared",
+            poll: pollDetails
+        });
+    } catch (error) {
+        console.log("Error clearing votes:", error);
+        res.status(500).json({ message: "Server Error" });
+    }
+}

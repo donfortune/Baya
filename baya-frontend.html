@@ -1,510 +1,3 @@
-<!-- <!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Baya - Real-Time Polling</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        .fade-in {
-            animation: fadeIn 0.3s ease-in;
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        .pulse-ring {
-            animation: pulse-ring 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-        }
-        @keyframes pulse-ring {
-            0%, 100% { opacity: 1; }
-            50% { opacity: .5; }
-        }
-    </style>
-</head>
-<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen">
-    <div id="app"></div>
-
-    <script>
-        // ===== CONFIGURATION =====
-        const API_BASE_URL = 'http://localhost:3000/api';
-
-        // ===== STATE MANAGEMENT =====
-        let currentView = 'home';
-        let currentPoll = null;
-        let userId = localStorage.getItem('baya_user_id') || `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        localStorage.setItem('baya_user_id', userId);
-        let pollRefreshInterval = null;
-
-        // ===== API CALLS =====
-        async function createPoll(question, options) {
-            const response = await fetch(`${API_BASE_URL}/polls`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ question, options })
-            });
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.message || 'Failed to create poll');
-            }
-            return await response.json();
-        }
-
-        async function getPollByRoomCode(roomCode) {
-            const response = await fetch(`${API_BASE_URL}/polls/room/${roomCode.toUpperCase()}`);
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.message || 'Poll not found');
-            }
-            return await response.json();
-        }
-
-        async function getPollDetails(pollId) {
-            const response = await fetch(`${API_BASE_URL}/polls/${pollId}`);
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.message || 'Poll not found');
-            }
-            return await response.json();
-        }
-
-        async function submitVote(pollId, option) {
-            const response = await fetch(`${API_BASE_URL}/polls/${pollId}/vote`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ option })
-            });
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.message || 'Failed to vote');
-            }
-            return await response.json();
-        }
-
-        // ===== RENDER FUNCTIONS =====
-        function render() {
-            const app = document.getElementById('app');
-            
-            if (currentView === 'home') {
-                app.innerHTML = renderHome();
-            } else if (currentView === 'lecturer-create') {
-                app.innerHTML = renderLecturerCreate();
-            } else if (currentView === 'lecturer-results') {
-                app.innerHTML = renderLecturerResults();
-            } else if (currentView === 'student-join') {
-                app.innerHTML = renderStudentJoin();
-            } else if (currentView === 'student-vote') {
-                app.innerHTML = renderStudentVote();
-            } else if (currentView === 'student-results') {
-                app.innerHTML = renderStudentResults();
-            }
-        }
-
-        function renderHome() {
-            return `
-                <div class="min-h-screen flex items-center justify-center p-4 fade-in">
-                    <div class="max-w-4xl w-full">
-                        <div class="text-center mb-12">
-                            <h1 class="text-6xl font-bold text-indigo-900 mb-4">Baya</h1>
-                            <p class="text-xl text-gray-600">Real-time polling for Nigerian universities</p>
-                            <p class="text-sm text-gray-500 mt-2">In memory of Grandma ❤️</p>
-                        </div>
-
-                        <div class="grid md:grid-cols-2 gap-6">
-                            <button onclick="goToView('lecturer-create')" 
-                                class="bg-white p-8 rounded-xl shadow-lg hover:shadow-2xl transition-all hover:-translate-y-2 group">
-                                <div class="text-6xl mb-4">📊</div>
-                                <h2 class="text-2xl font-bold text-gray-800 mb-2 group-hover:text-indigo-600">I'm a Lecturer</h2>
-                                <p class="text-gray-600">Create polls and see live results</p>
-                            </button>
-
-                            <button onclick="goToView('student-join')" 
-                                class="bg-white p-8 rounded-xl shadow-lg hover:shadow-2xl transition-all hover:-translate-y-2 group">
-                                <div class="text-6xl mb-4">🎓</div>
-                                <h2 class="text-2xl font-bold text-gray-800 mb-2 group-hover:text-green-600">I'm a Student</h2>
-                                <p class="text-gray-600">Join a poll with room code</p>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
-
-        function renderLecturerCreate() {
-            return `
-                <div class="min-h-screen p-4 fade-in">
-                    <div class="max-w-2xl mx-auto">
-                        <button onclick="goToView('home')" class="mb-6 text-indigo-600 hover:text-indigo-800 font-semibold">
-                            ← Back to Home
-                        </button>
-
-                        <div class="bg-white rounded-xl shadow-lg p-8">
-                            <h2 class="text-3xl font-bold text-gray-800 mb-6">Create a Poll</h2>
-
-                            <div id="error-message" class="hidden mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm"></div>
-
-                            <form onsubmit="handleCreatePoll(event)" class="space-y-6">
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">
-                                        Poll Question *
-                                    </label>
-                                    <input 
-                                        type="text" 
-                                        id="question" 
-                                        required
-                                        placeholder="e.g., How many states are in Nigeria?"
-                                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">
-                                        Options * (minimum 2)
-                                    </label>
-                                    <div id="options-container">
-                                        <input type="text" class="option-input w-full px-4 py-3 border border-gray-300 rounded-lg mb-3 focus:ring-2 focus:ring-indigo-500" placeholder="Option 1" required />
-                                        <input type="text" class="option-input w-full px-4 py-3 border border-gray-300 rounded-lg mb-3 focus:ring-2 focus:ring-indigo-500" placeholder="Option 2" required />
-                                    </div>
-                                    <button type="button" onclick="addOption()" class="text-indigo-600 hover:text-indigo-800 font-semibold">
-                                        + Add Option
-                                    </button>
-                                </div>
-
-                                <button 
-                                    type="submit" 
-                                    class="w-full bg-indigo-600 text-white py-3 rounded-lg font-semibold hover:bg-indigo-700 transition-colors"
-                                >
-                                    Create Poll
-                                </button>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
-
-        function renderLecturerResults() {
-            if (!currentPoll) return '';
-
-            const totalVotes = currentPoll.votes.reduce((sum, v) => sum + v, 0);
-            const maxVotes = Math.max(...currentPoll.votes, 1);
-
-            return `
-                <div class="min-h-screen p-4 fade-in">
-                    <div class="max-w-4xl mx-auto">
-                        <button onclick="goToView('home')" class="mb-6 text-indigo-600 hover:text-indigo-800 font-semibold">
-                            ← Create New Poll
-                        </button>
-
-                        <div class="bg-white rounded-xl shadow-lg p-8">
-                            <div class="flex items-center justify-between mb-6">
-                                <h2 class="text-2xl font-bold text-gray-800">Live Results</h2>
-                                <div class="flex items-center gap-2 text-green-600">
-                                    <div class="w-3 h-3 bg-green-600 rounded-full pulse-ring"></div>
-                                    <span class="font-semibold">LIVE</span>
-                                </div>
-                            </div>
-
-                            <div class="bg-indigo-50 p-6 rounded-lg mb-6 text-center">
-                                <p class="text-sm text-gray-600 mb-2">Room Code</p>
-                                <p class="text-5xl font-bold text-indigo-600 tracking-wider">${currentPoll.roomCode}</p>
-                                <p class="text-sm text-gray-600 mt-4">
-                                    👥 ${totalVotes} ${totalVotes === 1 ? 'vote' : 'votes'}
-                                </p>
-                            </div>
-
-                            <h3 class="text-xl font-semibold text-gray-800 mb-4">${currentPoll.question}</h3>
-
-                            <div class="space-y-4">
-                                ${currentPoll.options.map((option, index) => {
-                                    const votes = currentPoll.votes[index];
-                                    const percentage = totalVotes > 0 ? ((votes / totalVotes) * 100).toFixed(1) : 0;
-                                    const barWidth = totalVotes > 0 ? (votes / maxVotes * 100) : 0;
-
-                                    return `
-                                        <div>
-                                            <div class="flex justify-between mb-2">
-                                                <span class="font-medium text-gray-700">${option}</span>
-                                                <span class="text-gray-600">${votes} (${percentage}%)</span>
-                                            </div>
-                                            <div class="w-full bg-gray-200 rounded-full h-8 overflow-hidden">
-                                                <div class="bg-gradient-to-r from-indigo-500 to-purple-500 h-full rounded-full transition-all duration-500 flex items-center justify-end px-3"
-                                                    style="width: ${barWidth}%">
-                                                    ${votes > 0 ? `<span class="text-white font-semibold text-sm">${votes}</span>` : ''}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    `;
-                                }).join('')}
-                            </div>
-
-                            <div class="mt-6 text-center text-sm text-gray-500">
-                                Auto-refreshing every 3 seconds...
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
-
-        function renderStudentJoin() {
-            return `
-                <div class="min-h-screen p-4 flex items-center justify-center fade-in">
-                    <div class="max-w-md w-full">
-                        <button onclick="goToView('home')" class="mb-6 text-green-600 hover:text-green-800 font-semibold">
-                            ← Back to Home
-                        </button>
-
-                        <div class="bg-white rounded-xl shadow-lg p-8">
-                            <div class="text-6xl text-center mb-6">🔑</div>
-                            <h2 class="text-3xl font-bold text-gray-800 mb-6 text-center">Join Poll</h2>
-
-                            <div id="error-message" class="hidden mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm"></div>
-
-                            <form onsubmit="handleJoinPoll(event)">
-                                <div class="mb-6">
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">
-                                        Enter Room Code
-                                    </label>
-                                    <input 
-                                        type="text" 
-                                        id="roomCode" 
-                                        required
-                                        placeholder="e.g., H7K2MP"
-                                        maxlength="6"
-                                        class="w-full px-4 py-3 border border-gray-300 rounded-lg text-center text-2xl font-bold tracking-wider uppercase focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                                    />
-                                </div>
-
-                                <button 
-                                    type="submit" 
-                                    class="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition-colors"
-                                >
-                                    Join Poll
-                                </button>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
-
-        function renderStudentVote() {
-            if (!currentPoll) return '';
-
-            return `
-                <div class="min-h-screen p-4 fade-in">
-                    <div class="max-w-2xl mx-auto">
-                        <button onclick="goToView('student-join')" class="mb-6 text-green-600 hover:text-green-800 font-semibold">
-                            ← Leave Poll
-                        </button>
-
-                        <div class="bg-white rounded-xl shadow-lg p-8">
-                            <div id="error-message" class="hidden mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm"></div>
-
-                            <h2 class="text-2xl font-bold text-gray-800 mb-6">${currentPoll.question}</h2>
-
-                            <div class="space-y-3">
-                                ${currentPoll.options.map((option, index) => `
-                                    <button 
-                                        onclick="handleVote('${option}')"
-                                        class="w-full p-4 border-2 border-gray-300 rounded-lg text-left font-medium hover:border-green-500 hover:bg-green-50 transition-all"
-                                    >
-                                        ${option}
-                                    </button>
-                                `).join('')}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
-
-        function renderStudentResults() {
-            if (!currentPoll) return '';
-
-            const totalVotes = currentPoll.votes.reduce((sum, v) => sum + v, 0);
-            const maxVotes = Math.max(...currentPoll.votes, 1);
-
-            return `
-                <div class="min-h-screen p-4 fade-in">
-                    <div class="max-w-2xl mx-auto">
-                        <button onclick="goToView('student-join')" class="mb-6 text-green-600 hover:text-green-800 font-semibold">
-                            ← Join Another Poll
-                        </button>
-
-                        <div class="bg-white rounded-xl shadow-lg p-8">
-                            <div class="flex items-center justify-between mb-6">
-                                <h2 class="text-2xl font-bold text-gray-800">Results</h2>
-                                <div class="flex items-center gap-2 text-green-600">
-                                    <div class="w-3 h-3 bg-green-600 rounded-full pulse-ring"></div>
-                                    <span class="font-semibold">LIVE</span>
-                                </div>
-                            </div>
-
-                            <div class="bg-green-50 p-4 rounded-lg mb-6 text-center">
-                                <p class="text-green-800 font-semibold">✓ Your vote has been recorded!</p>
-                                <p class="text-sm text-gray-600 mt-2">
-                                    ${totalVotes} ${totalVotes === 1 ? 'student has' : 'students have'} voted
-                                </p>
-                            </div>
-
-                            <h3 class="text-lg font-semibold text-gray-800 mb-4">${currentPoll.question}</h3>
-
-                            <div class="space-y-4">
-                                ${currentPoll.options.map((option, index) => {
-                                    const votes = currentPoll.votes[index];
-                                    const percentage = totalVotes > 0 ? ((votes / totalVotes) * 100).toFixed(1) : 0;
-                                    const barWidth = totalVotes > 0 ? (votes / maxVotes * 100) : 0;
-
-                                    return `
-                                        <div>
-                                            <div class="flex justify-between mb-2">
-                                                <span class="font-medium text-gray-700">${option}</span>
-                                                <span class="text-gray-600">${percentage}%</span>
-                                            </div>
-                                            <div class="w-full bg-gray-200 rounded-full h-6 overflow-hidden">
-                                                <div class="bg-gradient-to-r from-green-500 to-teal-500 h-full rounded-full transition-all duration-500"
-                                                    style="width: ${barWidth}%">
-                                                </div>
-                                            </div>
-                                        </div>
-                                    `;
-                                }).join('')}
-                            </div>
-
-                            <div class="mt-6 text-center text-sm text-gray-500">
-                                Results update automatically
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
-
-        // ===== EVENT HANDLERS =====
-        function goToView(view) {
-            currentView = view;
-            currentPoll = null;
-            
-            // Clear any refresh intervals
-            if (pollRefreshInterval) {
-                clearInterval(pollRefreshInterval);
-                pollRefreshInterval = null;
-            }
-            
-            render();
-        }
-
-        function addOption() {
-            const container = document.getElementById('options-container');
-            const optionCount = container.getElementsByClassName('option-input').length;
-            const input = document.createElement('input');
-            input.type = 'text';
-            input.className = 'option-input w-full px-4 py-3 border border-gray-300 rounded-lg mb-3 focus:ring-2 focus:ring-indigo-500';
-            input.placeholder = `Option ${optionCount + 1}`;
-            container.appendChild(input);
-        }
-
-        async function handleCreatePoll(event) {
-            event.preventDefault();
-            
-            const question = document.getElementById('question').value;
-            const optionInputs = document.getElementsByClassName('option-input');
-            const options = Array.from(optionInputs)
-                .map(input => input.value.trim())
-                .filter(option => option.length > 0);
-
-            if (options.length < 2) {
-                showError('Please provide at least 2 options');
-                return;
-            }
-
-            try {
-                const poll = await createPoll(question, options);
-                currentPoll = poll;
-                currentView = 'lecturer-results';
-                render();
-                
-                // Start auto-refresh
-                pollRefreshInterval = setInterval(async () => {
-                    try {
-                        const updated = await getPollDetails(currentPoll.pollId);
-                        currentPoll = updated.data || updated;
-                        render();
-                    } catch (error) {
-                        console.error('Failed to refresh poll:', error);
-                    }
-                }, 3000);
-                
-            } catch (error) {
-                showError(error.message);
-            }
-        }
-
-        async function handleJoinPoll(event) {
-            event.preventDefault();
-            
-            const roomCode = document.getElementById('roomCode').value.toUpperCase();
-
-            try {
-                const response = await getPollByRoomCode(roomCode);
-                currentPoll = response.data ? response.data[0] : response;
-                
-                if (!currentPoll) {
-                    throw new Error('Poll not found');
-                }
-                
-                currentView = 'student-vote';
-                render();
-            } catch (error) {
-                showError(error.message);
-            }
-        }
-
-        async function handleVote(option) {
-            try {
-                const response = await submitVote(currentPoll.pollId, option);
-                currentPoll = response.poll;
-                currentView = 'student-results';
-                render();
-                
-                // Start auto-refresh for results
-                pollRefreshInterval = setInterval(async () => {
-                    try {
-                        const updated = await getPollDetails(currentPoll.pollId);
-                        currentPoll = updated.data || updated;
-                        render();
-                    } catch (error) {
-                        console.error('Failed to refresh results:', error);
-                    }
-                }, 3000);
-                
-            } catch (error) {
-                showError(error.message);
-            }
-        }
-
-        function showError(message) {
-            const errorDiv = document.getElementById('error-message');
-            if (errorDiv) {
-                errorDiv.textContent = message;
-                errorDiv.classList.remove('hidden');
-                setTimeout(() => {
-                    errorDiv.classList.add('hidden');
-                }, 5000);
-            }
-        }
-
-        // ===== INITIALIZE =====
-        render();
-    </script>
-</body>
-</html>
-
- -->
-
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -517,6 +10,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
     <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 
     <script>
         tailwind.config = {
@@ -531,7 +25,7 @@
     </script>
 
     <style>
-        body { background-color: #0f172a; color: white; background-image: radial-gradient(at 0% 0%, hsla(253,16%,7%,1) 0, transparent 50%), radial-gradient(at 50% 0%, hsla(225,39%,30%,1) 0, transparent 50%); background-attachment: fixed; }
+        body { background-color: #0f172a; color: white; background-image: radial-gradient(at 0% 0%, hsla(253,16%,7%,1) 0, transparent 50%), radial-gradient(at 50% 0%, hsla(225,39%,30%,1) 0, transparent 50%), radial-gradient(at 100% 0%, hsla(339,49%,30%,1) 0, transparent 50%); background-attachment: fixed; }
         .glass { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
         .white-card { background: #ffffff; color: #0f172a; border-radius: 0.75rem; padding: 1.25rem; border: 1px solid #cbd5e1; transition: all 0.2s; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
         .white-card:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); border-color: #94a3b8; }
@@ -543,8 +37,8 @@
         .focus-overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.95); z-index: 50; overflow-y: auto; padding: 2rem; backdrop-filter: blur(5px); display: flex; align-items: center; justify-content: center; }
         .loader { border: 3px solid rgba(0,0,0,0.1); border-radius: 50%; border-top: 3px solid black; width: 20px; height: 20px; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        
-        /* AI INSIGHT CARDS */
+        .auth-input { width: 100%; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: white; padding: 12px; border-radius: 8px; outline: none; margin-top: 4px; }
+        .auth-input:focus { border-color: #3b82f6; }
         .ai-card { border-left: 4px solid; padding: 1.25rem; border-radius: 0.75rem; margin-bottom: 2rem; display: flex; gap: 1rem; align-items: start; }
         .ai-danger { background: rgba(254, 242, 242, 0.95); border-color: #ef4444; color: #991b1b; }
         .ai-success { background: rgba(240, 253, 244, 0.95); border-color: #22c55e; color: #166534; }
@@ -554,298 +48,184 @@
 </head>
 <body class="antialiased min-h-screen flex flex-col">
     <div id="app" class="flex-grow flex items-center justify-center p-4"></div>
-    <div class="text-center p-4 text-xs text-gray-500 glass border-t border-t-white/5 fixed bottom-0 w-full z-0">Baya Enterprise v3.0</div>
+    <div class="text-center p-4 text-xs text-gray-500 glass border-t border-t-white/5 fixed bottom-0 w-full z-0">Baya Secure v4.3</div>
 
     <script>
         // 1. VERSION RESET
-        try { if (localStorage.getItem('baya_version') !== '3.0') { localStorage.clear(); localStorage.setItem('baya_version', '3.0'); } } catch(e) {}
+        try { if (localStorage.getItem('baya_version') !== '4.3') { localStorage.clear(); localStorage.setItem('baya_version', '4.3'); } } catch(e) {}
 
         // 2. CONFIG
-        const API_BASE_URL = 'http://localhost:3000/api'; 
+        const BASE_URL = 'http://localhost:3000';
+        const API_URL = `${BASE_URL}/api`;
 
-        // 3. STATE
+        // 3. SOCKET
+        const socket = io(BASE_URL);
+        socket.on('connect', () => { if(state.existingRoomCode) socket.emit('join_room', state.existingRoomCode); });
+        socket.on('poll_updated', (updatedPoll) => {
+            const newList = state.pollsList.map(p => (p.pollId === updatedPoll.pollId || p._id === updatedPoll._id) ? updatedPoll : p);
+            const exists = newList.find(p => p.pollId === updatedPoll.pollId || p._id === updatedPoll._id);
+            if (!exists) newList.push(updatedPoll);
+            
+            let newFocused = state.focusedPoll;
+            if (state.focusedPoll && (state.focusedPoll.pollId === updatedPoll.pollId || state.focusedPoll._id === updatedPoll._id)) newFocused = updatedPoll;
+            
+            let newPoll = state.poll;
+            if (state.poll && (state.poll.pollId === updatedPoll.pollId || state.poll._id === updatedPoll._id)) newPoll = updatedPoll;
+
+            updateState({ pollsList: newList, focusedPoll: newFocused, poll: newPoll });
+        });
+
+        // 4. STATE
         let state = JSON.parse(localStorage.getItem('baya_state')) || { 
-            view: 'home', poll: null, pollsList: [], existingRoomCode: null, userId: `user_${Date.now()}`, focusedPoll: null, isCreating: false
+            view: 'home', poll: null, pollsList: [], existingRoomCode: null, userId: `guest_${Date.now()}`, focusedPoll: null, isCreating: false,
+            user: null, token: null
         };
         let pollRefreshInterval = null;
 
-        // 4. HELPERS
+        // 5. HELPERS
         function updateState(updates) { state = { ...state, ...updates }; localStorage.setItem('baya_state', JSON.stringify(state)); render(); }
         function showToast(msg, type='success') { if(typeof Toastify==='function') Toastify({text: msg, duration: 3000, gravity: "top", position: "center", style: { background: type==='success'?"#10B981":"#EF4444"}}).showToast(); else alert(msg); }
+        
         async function apiCall(ep, m='GET', b=null) {
-            const opts = { method: m, headers: { 'Content-Type': 'application/json' } }; if (b) opts.body = JSON.stringify(b);
-            const r = await fetch(`${API_BASE_URL}${ep}`, opts); const d = await r.json(); if (!r.ok) throw new Error(d.message); return d;
+            const headers = { 'Content-Type': 'application/json' };
+            if (state.token) headers['Authorization'] = `Bearer ${state.token}`;
+            const opts = { method: m, headers }; if (b) opts.body = JSON.stringify(b);
+            const r = await fetch(`${API_URL}${ep}`, opts); const d = await r.json(); if (!r.ok) throw new Error(d.message || 'Request failed'); return d;
         }
 
-        // ==========================================
-        // 5. BAYA INTELLIGENCE ENGINE (ACTIONABLE)
-        // ==========================================
+        function logout() {
+            updateState({ view: 'home', token: null, user: null, pollsList: [], existingRoomCode: null });
+            showToast("Logged out");
+        }
+
+        // 6. AI ENGINE
         function generateInsight(poll, total) {
-            if (total < 2) return { 
-                title: "Gathering Data...", 
-                text: "Wait for at least 2 votes to see insights.", 
-                style: "ai-neutral", icon: "fa-circle-notch fa-spin" 
-            };
-
-            // 1. Analyze Winner
-            let max = -1, winIdx = -1; 
-            poll.votes.forEach((v,i) => { if(v > max) { max = v; winIdx = i; } });
-            const winOption = (poll.options[winIdx] || "").toLowerCase();
-            const percent = Math.round((max/total) * 100);
-
-            // 2. Define Context Keywords
-            const confusionWords = ['no', 'lost', 'confused', 'hard', 'stop', 'difficult', 'repeat', 'slow'];
-            const clarityWords = ['yes', 'good', 'fast', 'understand', 'great', 'go', 'easy', 'clear'];
-            
-            // 3. Generate Actionable Advice
-            // CASE A: HIGH CONFUSION (>50% Negative)
-            if (confusionWords.some(w => winOption.includes(w)) && percent > 50) {
-                return { 
-                    title: "🚨 Alert: Confusion Detected", 
-                    text: `<b>${percent}%</b> of students are struggling. <br><br><b>Recommended Action:</b><br>1. Pause the lecture immediately.<br>2. Do NOT move to the next slide.<br>3. Re-explain using a local analogy (e.g. Traffic, Market).`, 
-                    style: "ai-danger", icon: "fa-triangle-exclamation" 
-                };
-            }
-            
-            // CASE B: HIGH CLARITY (>65% Positive)
-            if (clarityWords.some(w => winOption.includes(w)) && percent > 65) {
-                return { 
-                    title: "✅ Green Light", 
-                    text: `<b>${percent}%</b> comprehension! The class is following perfectly. <br><br><b>Action:</b> You can safely speed up or skip the next example.`, 
-                    style: "ai-success", icon: "fa-check-circle" 
-                };
-            }
-
-            // CASE C: SPLIT ROOM (40% - 60%)
-            if (percent >= 40 && percent <= 60) {
-                return { 
-                    title: "🤔 Mixed Understanding", 
-                    text: `The class is split. <br><br><b>Action:</b> Ask a student who understands to explain it to the class in their own words.`, 
-                    style: "ai-warning", icon: "fa-scale-balanced" 
-                };
-            }
-
-            // CASE D: GENERIC TREND
-            return { 
-                title: "ℹ️ Current Trend", 
-                text: `The leading response is <b>"${poll.options[winIdx]}"</b> with ${percent}% of the vote.`, 
-                style: "ai-neutral", icon: "fa-chart-pie" 
-            };
+            if (total < 2) return { title: "Gathering Data...", text: "Wait for at least 2 votes.", style: "bg-gray-800 border-gray-700 text-gray-400" };
+            let max = -1, winIdx = -1; poll.votes.forEach((v,i) => { if(v > max) { max = v; winIdx = i; } });
+            const winOption = (poll.options[winIdx] || "").toLowerCase(); const percent = Math.round((max/total) * 100);
+            const neg = ['no','bad','slow','lost','confused']; const pos = ['yes','good','fast','understand'];
+            if (neg.some(w => winOption.includes(w)) && percent > 50) return { title: "🚨 Alert: Confusion", text: `<b>${percent}%</b> are struggling. Pause and re-explain.`, style: "bg-red-900/30 border-red-500 text-red-200" };
+            if (pos.some(w => winOption.includes(w)) && percent > 65) return { title: "✅ Green Light", text: `<b>${percent}%</b> comprehension. Speed up.`, style: "bg-green-900/30 border-green-500 text-green-200" };
+            return { title: "ℹ️ Trend", text: `Leading: <b>"${poll.options[winIdx]}"</b> (${percent}%).`, style: "bg-gray-800 border-gray-600 text-gray-300" };
         }
 
-        // ==========================================
-        // 6. VIEWS
-        // ==========================================
+        // 7. VIEWS
         const Views = {
             home: () => `
                 <div class="max-w-4xl w-full text-center animate-slide-up z-10 pb-16">
                     <h1 class="text-7xl font-extrabold tracking-tighter mb-4 bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">baya.</h1>
                     <p class="text-xl text-gray-400 mb-12 font-light">Real-time classroom intelligence.</p>
                     <div class="grid md:grid-cols-2 gap-6 max-w-2xl mx-auto">
-                        <button onclick="updateState({view: 'lecturer-dashboard', existingRoomCode: null, pollsList: []})" class="glass p-8 rounded-2xl hover:bg-white/10 transition-all text-left group"><div class="text-6xl mb-4 group-hover:scale-110 transition">📊</div><h2 class="text-2xl font-bold">Host Session</h2><p class="text-sm text-gray-400">Manage polls & results</p></button>
+                        <button onclick="${state.token ? "updateState({view: 'lecturer-dashboard'})" : "updateState({view: 'login'})"}" class="glass p-8 rounded-2xl hover:bg-white/10 transition-all text-left group"><div class="text-6xl mb-4 group-hover:scale-110 transition">📊</div><h2 class="text-2xl font-bold">Host Session</h2><p class="text-sm text-gray-400">Login to manage polls</p></button>
                         <button onclick="updateState({view: 'student-join'})" class="glass p-8 rounded-2xl hover:bg-white/10 transition-all text-left group"><div class="text-6xl mb-4 group-hover:scale-110 transition">👋</div><h2 class="text-2xl font-bold">Join Session</h2><p class="text-sm text-gray-400">Enter code to vote</p></button>
                     </div>
                 </div>`,
 
+            'login': () => `
+                <div class="w-full max-w-sm animate-slide-up z-10 pb-12">
+                    <button onclick="updateState({view: 'home'})" class="mb-6 text-gray-400 hover:text-white flex items-center gap-2 text-sm"><i class="fa-solid fa-arrow-left"></i> Back</button>
+                    <div class="glass p-8 rounded-3xl">
+                        <h2 class="text-2xl font-bold mb-6 text-center">Host Login</h2>
+                        <form onsubmit="handleLogin(event)">
+                            <div class="mb-4"><label class="text-xs font-bold text-gray-400 uppercase">Email</label><input id="email" type="email" required class="auth-input" placeholder="host@baya.com"></div>
+                            <div class="mb-6"><label class="text-xs font-bold text-gray-400 uppercase">Password</label><input id="password" type="password" required class="auth-input" placeholder="••••••"></div>
+                            <button id="btn-login" type="submit" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl font-bold transition flex justify-center items-center gap-2">Login <span id="spinner-login" class="hidden loader"></span></button>
+                        </form>
+                        <p class="text-center text-sm text-gray-400 mt-6">New here? <button onclick="updateState({view: 'register'})" class="text-blue-400 font-bold hover:underline">Create Account</button></p>
+                    </div>
+                </div>`,
+
+            'register': () => `
+                <div class="w-full max-w-sm animate-slide-up z-10 pb-12">
+                    <button onclick="updateState({view: 'home'})" class="mb-6 text-gray-400 hover:text-white flex items-center gap-2 text-sm"><i class="fa-solid fa-arrow-left"></i> Back</button>
+                    <div class="glass p-8 rounded-3xl">
+                        <h2 class="text-2xl font-bold mb-6 text-center">Create Account</h2>
+                        <form onsubmit="handleRegister(event)">
+                            <div class="mb-4"><label class="text-xs font-bold text-gray-400 uppercase">Full Name</label><input id="reg-name" type="text" required class="auth-input" placeholder="John Doe"></div>
+                            <div class="mb-4"><label class="text-xs font-bold text-gray-400 uppercase">Email</label><input id="reg-email" type="email" required class="auth-input" placeholder="host@baya.com"></div>
+                            <div class="mb-6"><label class="text-xs font-bold text-gray-400 uppercase">Password</label><input id="reg-password" type="password" required class="auth-input" placeholder="••••••"></div>
+                            <button id="btn-reg" type="submit" class="w-full bg-green-600 hover:bg-green-500 text-white py-3 rounded-xl font-bold transition flex justify-center items-center gap-2">Sign Up <span id="spinner-reg" class="hidden loader"></span></button>
+                        </form>
+                        <p class="text-center text-sm text-gray-400 mt-6">Have an account? <button onclick="updateState({view: 'login'})" class="text-blue-400 font-bold hover:underline">Login</button></p>
+                    </div>
+                </div>`,
+
             'lecturer-dashboard': () => {
+                // *** SAFE REDIRECT ***
+                if (!state.token || !state.user) {
+                    setTimeout(() => updateState({view: 'login'}), 0);
+                    return `<div class="flex h-screen items-center justify-center"><div class="loader"></div></div>`;
+                }
+
+                // *** NAME EXTRACTION LOGIC (The Fix) ***
+                let displayName = "Host";
+                if (state.user && state.user.name) {
+                    // Extract first name and capitalize it
+                    displayName = state.user.name.split(' ')[0];
+                    displayName = displayName.charAt(0).toUpperCase() + displayName.slice(1);
+                }
+
                 const hasPolls = state.pollsList.length > 0;
                 const sortedPolls = [...state.pollsList].sort((a,b) => (a.status === 'active' ? -1 : 1));
-
+                
                 return `
                 ${state.focusedPoll ? renderFocusedModal() : ''}
-                
                 <div class="w-full max-w-5xl animate-slide-up z-10 pb-12">
                     <div class="flex justify-between items-end mb-8">
                         <div>
-                            <h2 class="text-3xl font-bold">Session Dashboard</h2>
-                            <p class="text-gray-400 text-sm mt-1">Room Code: <span class="font-mono text-blue-400 text-lg font-bold cursor-pointer" onclick="copyCode('${state.existingRoomCode || '...'}')">${state.existingRoomCode || 'Not Created'}</span></p>
+                            <h2 class="text-3xl font-bold">Hello, ${displayName}</h2>
+                            <p class="text-gray-400 text-sm mt-1">Room Code: <span class="font-mono text-blue-400 text-lg font-bold cursor-pointer" onclick="copyCode('${state.existingRoomCode || '...' }')">${state.existingRoomCode || 'Start Session'}</span></p>
                         </div>
                         <div class="flex gap-3">
-                            <button onclick="updateState({view: 'home', pollsList: [], existingRoomCode: null})" class="text-sm text-gray-400 hover:text-white px-3">Exit</button>
+                            <button onclick="logout()" class="text-sm text-gray-400 hover:text-red-400 px-3 font-bold">Log Out</button>
                             <button onclick="openCreateModal()" class="bg-blue-600 hover:bg-blue-500 text-white px-5 py-3 rounded-xl text-sm font-bold flex items-center gap-2 shadow-lg hover:shadow-blue-500/20 transition transform hover:-translate-y-1"><i class="fa-solid fa-plus"></i> New Poll</button>
                         </div>
                     </div>
-
-                    ${!hasPolls ? 
-                        `<div class="glass p-12 rounded-3xl text-center border-dashed border-2 border-white/10">
-                            <div class="text-4xl mb-4">📭</div><h3 class="text-xl font-bold text-gray-300">No polls yet</h3><p class="text-gray-500 mb-6">Create your first question to get started.</p><button onclick="openCreateModal()" class="text-blue-400 hover:text-blue-300 font-bold">Create Now →</button>
-                        </div>` 
-                    : 
-                        `<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            ${sortedPolls.map((p) => {
-                                const isActive = p.status === 'active';
-                                const total = p.votes ? p.votes.reduce((a,b)=>a+b,0) : 0;
-                                const title = p.question || p.title || "Untitled Question";
-                                return `
-                                <div onclick="focusPoll('${p.pollId || p._id}')" class="white-card relative group cursor-pointer">
-                                    <div class="flex justify-between items-start mb-3">
-                                        <span class="badge ${isActive ? 'badge-active' : 'badge-closed'}"><i class="fa-solid fa-circle text-[6px] mr-1 align-middle"></i> ${isActive ? 'ACTIVE' : 'CLOSED'}</span>
-                                        <span class="text-xs text-gray-400 font-mono">${total} votes</span>
-                                    </div>
-                                    <h3 class="font-bold text-lg text-slate-800 leading-tight mb-4 line-clamp-2">${title}</h3>
-                                    <div class="space-y-2">
-                                        ${p.options.slice(0,2).map((opt, i) => {
-                                            const v = p.votes[i] || 0; const pct = total ? Math.round((v/total)*100) : 0;
-                                            return `<div><div class="flex justify-between text-xs text-slate-500 mb-1"><span>${opt}</span><span>${pct}%</span></div><div class="mini-bar"><div class="mini-fill" style="width: ${pct}%"></div></div></div>`;
-                                        }).join('')}
-                                        ${p.options.length > 2 ? `<div class="text-xs text-slate-400 mt-1">+ ${p.options.length - 2} more</div>` : ''}
-                                    </div>
-                                </div>`;
-                            }).join('')}
-                        </div>`
-                    }
+                    ${!hasPolls ? `<div class="glass p-12 rounded-3xl text-center border-dashed border-2 border-white/10"><div class="text-4xl mb-4">📭</div><h3 class="text-xl font-bold text-gray-300">Start Session</h3><p class="text-gray-500 mb-6">Create your first question.</p><button onclick="openCreateModal()" class="text-blue-400 hover:text-blue-300 font-bold">Create Now →</button></div>` 
+                    : `<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">${sortedPolls.map((p) => { const isActive = p.status === 'active'; const total = p.votes ? p.votes.reduce((a,b)=>a+b,0) : 0; const title = p.question || p.title || "Untitled Question"; return `<div onclick="focusPoll('${p.pollId || p._id}')" class="white-card relative group cursor-pointer"><div class="flex justify-between items-start mb-3"><span class="badge ${isActive ? 'badge-active' : 'badge-closed'}"><i class="fa-solid fa-circle text-[6px] mr-1 align-middle"></i> ${isActive ? 'ACTIVE' : 'CLOSED'}</span><span class="text-xs text-gray-400 font-mono">${total} votes</span></div><h3 class="font-bold text-lg text-slate-800 leading-tight mb-4 line-clamp-2">${title}</h3><div class="space-y-2">${p.options.slice(0,2).map((opt, i) => { const v = p.votes[i] || 0; const pct = total ? Math.round((v/total)*100) : 0; return `<div><div class="flex justify-between text-xs text-slate-500 mb-1"><span>${opt}</span><span>${pct}%</span></div><div class="mini-bar"><div class="mini-fill" style="width: ${pct}%"></div></div></div>`; }).join('')}${p.options.length > 2 ? `<div class="text-xs text-slate-400 mt-1">+ ${p.options.length - 2} more</div>` : ''}</div></div>`; }).join('')}</div>`}
                 </div>
                 <div id="create-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
                     <div class="bg-white text-gray-900 w-full max-w-lg rounded-2xl p-6 shadow-2xl animate-slide-up">
                         <div class="flex justify-between items-center mb-6"><h3 class="text-xl font-bold">New Question</h3><button onclick="closeCreateModal()" class="text-gray-400 hover:text-black"><i class="fa-solid fa-xmark fa-lg"></i></button></div>
-                        <form onsubmit="handleCreate(event)">
-                            <div class="mb-4"><label class="text-xs font-bold text-gray-500 uppercase">Question</label><input id="question" required class="w-full bg-gray-50 border border-gray-200 rounded-lg p-3 outline-none focus:border-blue-500 mt-1" placeholder="e.g. Do you understand?"></div>
-                            <div class="mb-4"><label class="text-xs font-bold text-gray-500 uppercase">Options</label><div id="options-list" class="space-y-2 mt-1"><input class="opt-input w-full bg-gray-50 border border-gray-200 rounded-lg p-3 outline-none" placeholder="Option 1" required><input class="opt-input w-full bg-gray-50 border border-gray-200 rounded-lg p-3 outline-none" placeholder="Option 2" required></div><button type="button" onclick="addOptionInput()" class="mt-2 text-xs font-bold text-blue-600 uppercase">+ Add Option</button></div>
-                            <button id="btn-create" type="submit" class="w-full bg-black text-white py-3 rounded-xl font-bold hover:bg-gray-800 transition flex justify-center items-center gap-2">Launch <span id="spinner-create" class="hidden loader"></span></button>
-                        </form>
+                        <form onsubmit="handleCreate(event)"><div class="mb-4"><label class="text-xs font-bold text-gray-500 uppercase">Question</label><input id="question" required class="w-full bg-gray-50 border border-gray-200 rounded-lg p-3 outline-none focus:border-blue-500 mt-1" placeholder="e.g. Do you understand?"></div><div class="mb-4"><label class="text-xs font-bold text-gray-500 uppercase">Options</label><div id="options-list" class="space-y-2 mt-1"><input class="opt-input w-full bg-gray-50 border border-gray-200 rounded-lg p-3 outline-none" placeholder="Option 1" required><input class="opt-input w-full bg-gray-50 border border-gray-200 rounded-lg p-3 outline-none" placeholder="Option 2" required></div><button type="button" onclick="addOptionInput()" class="mt-2 text-xs font-bold text-blue-600 uppercase">+ Add Option</button></div><button id="btn-create" type="submit" class="w-full bg-black text-white py-3 rounded-xl font-bold hover:bg-gray-800 transition flex justify-center items-center gap-2">Launch <span id="spinner-create" class="hidden loader"></span></button></form>
                     </div>
                 </div>`;
             },
 
             'student-join': () => `<div class="w-full max-w-sm animate-slide-up z-10 pb-12"><button onclick="updateState({view: 'home'})" class="mb-6 text-gray-400 hover:text-white flex items-center gap-2 text-sm"><i class="fa-solid fa-arrow-left"></i> Back</button><div class="glass p-8 rounded-3xl text-center"><h2 class="text-2xl font-bold mb-2">Join Session</h2><p class="text-sm text-gray-400 mb-8">Enter the code provided by the host.</p><form onsubmit="handleJoin(event)"><input id="room-code-input" required maxlength="6" class="w-full bg-black/30 border border-white/10 rounded-2xl p-6 text-center text-3xl font-mono font-bold uppercase text-white outline-none mb-6 tracking-widest placeholder-gray-700" placeholder="X9Y2"><button id="btn-join" type="submit" class="bg-white text-black w-full py-4 rounded-xl font-bold text-lg hover:bg-gray-200 transition flex justify-center items-center gap-2">Enter Session <span id="spinner-join" class="hidden loader"></span></button></form></div></div>`,
-            
-            'student-poll-list': () => `
-                <div class="w-full max-w-md animate-slide-up z-10 pb-12">
-                    <div class="glass p-8 rounded-3xl">
-                        <div class="flex justify-between items-center mb-6"><h2 class="text-xl font-bold">Available Polls</h2><button onclick="updateState({view: 'student-join', pollsList: []})" class="text-xs text-gray-500 hover:text-white">Exit Room</button></div>
-                        <div class="space-y-4">
-                            ${state.pollsList.map((p, i) => {
-                                const isActive = p.status !== 'closed';
-                                const total = p.votes ? p.votes.reduce((a,b)=>a+b,0) : 0;
-                                const title = p.question || p.title || "Untitled Question";
-                                return `
-                                <button onclick="${isActive ? `selectPoll(${i})` : ''}" class="w-full text-left white-card group ${!isActive ? 'opacity-60 cursor-not-allowed' : ''}">
-                                    <div class="flex justify-between items-start mb-2">
-                                        <div class="font-bold text-lg text-slate-900 group-hover:text-blue-600 transition line-clamp-2">${title}</div>
-                                        <span class="badge ${isActive ? 'badge-active' : 'badge-closed'}">${isActive ? 'LIVE' : 'CLOSED'}</span>
-                                    </div>
-                                    <div class="text-xs text-slate-500 font-medium"><i class="fa-solid fa-check-to-slot mr-1"></i> ${total} votes cast</div>
-                                </button>`;
-                            }).join('')}
-                        </div>
-                    </div>
-                </div>`,
-            
+            'student-poll-list': () => `<div class="w-full max-w-md animate-slide-up z-10 pb-12"><div class="glass p-8 rounded-3xl"><div class="flex justify-between items-center mb-6"><h2 class="text-xl font-bold">Available Polls</h2><button onclick="updateState({view: 'student-join', pollsList: []})" class="text-xs text-gray-500 hover:text-white">Exit Room</button></div><div class="space-y-4">${state.pollsList.map((p, i) => { const isActive = p.status !== 'closed'; const total = p.votes ? p.votes.reduce((a,b)=>a+b,0) : 0; const title = p.question || p.title || "Untitled Question"; return `<button onclick="${isActive ? `selectPoll(${i})` : ''}" class="w-full text-left white-card group ${!isActive ? 'opacity-60 cursor-not-allowed' : ''}"><div class="flex justify-between items-start mb-2"><div class="font-bold text-lg text-slate-900 group-hover:text-blue-600 transition line-clamp-2">${title}</div><span class="badge ${isActive ? 'badge-active' : 'badge-closed'}">${isActive ? 'LIVE' : 'CLOSED'}</span></div><div class="text-xs text-slate-500 font-medium"><i class="fa-solid fa-check-to-slot mr-1"></i> ${total} votes cast</div></button>`; }).join('')}</div></div></div>`,
             'student-vote': () => { if (!state.poll) return ''; const title = state.poll.question || state.poll.title || "Untitled"; const isActive = state.poll.status !== 'closed'; return `<div class="w-full max-w-md animate-slide-up z-10 pb-12"><div class="glass p-8 rounded-3xl"><div class="flex justify-between items-center mb-6"><span class="text-xs font-bold text-blue-400 uppercase tracking-widest">Live Poll</span><button onclick="updateState({view: ${state.pollsList.length > 1 ? "'student-poll-list'" : "'student-join'"}, poll: null})" class="text-xs text-gray-500">Back</button></div><h2 class="text-2xl font-bold mb-8 leading-snug">${title}</h2>${!isActive ? `<div class="p-4 bg-red-500/20 border border-red-500 text-red-200 rounded-xl mb-6 text-center font-bold">⛔ Voting is closed</div>` : ''}<div class="space-y-3">${state.poll.options.map((opt, i) => `<button ${!isActive ? 'disabled' : ''} onclick="handleVote('${opt}')" class="w-full p-5 white-card text-left text-lg font-bold hover:border-blue-500 ${!isActive ? 'opacity-50 cursor-not-allowed' : ''}">${opt}</button>`).join('')}</div></div></div>`; },
             'student-results': () => { const total = state.poll.votes.reduce((a,b)=>a+b,0); return `<div class="w-full max-w-md animate-slide-up z-10 pb-12 text-center"><div class="glass p-8 rounded-3xl"><div class="w-16 h-16 bg-green-500/20 text-green-400 rounded-full flex items-center justify-center mx-auto mb-6 text-2xl"><i class="fa-solid fa-check"></i></div><h2 class="text-2xl font-bold mb-2">Vote Submitted!</h2><p class="text-sm text-gray-400 mb-8">Waiting for host...</p><button onclick="updateState({view: ${state.pollsList.length > 1 ? "'student-poll-list'" : "'student-join'"}, poll: null})" class="mt-8 text-sm text-gray-500 hover:text-white">Vote in another poll</button></div></div>`; }
         };
 
-        // 7. EXPANDED MODAL (HOST)
-        function renderFocusedModal() {
-            if (!state.focusedPoll) return '';
-            const p = state.focusedPoll;
-            const total = p.votes.reduce((a,b)=>a+b,0);
-            const isActive = p.status === 'active';
-            const title = p.question || p.title || "Untitled";
-            const insight = generateInsight(p, total);
-            
-            return `
-            <div class="focus-overlay flex items-center justify-center animate-slide-up">
-                <div class="w-full max-w-3xl glass p-8 rounded-3xl shadow-2xl relative">
-                    <button onclick="updateState({focusedPoll: null})" class="absolute top-6 right-6 text-gray-400 hover:text-white bg-white/10 w-10 h-10 rounded-full flex items-center justify-center transition"><i class="fa-solid fa-xmark"></i></button>
-                    <div class="flex items-center gap-4 mb-6"><span class="badge ${isActive ? 'badge-active' : 'badge-closed'} text-sm px-3 py-1">${isActive ? 'LIVE' : 'CLOSED'}</span></div>
-                    <h2 class="text-3xl font-bold mb-6 leading-tight">${title}</h2>
-                    
-                    <div class="ai-card ${insight.style}">
-                        <div class="text-2xl pt-1"><i class="fa-solid ${insight.icon}"></i></div>
-                        <div>
-                            <div class="text-xs font-bold uppercase tracking-widest opacity-80 mb-1">${insight.title}</div>
-                            <div class="text-sm leading-relaxed opacity-90">${insight.text}</div>
-                        </div>
-                    </div>
-
-                    <div class="space-y-3 mb-8">
-                        ${p.options.map((opt, i) => {
-                            const pct = total ? Math.round((p.votes[i]/total)*100) : 0;
-                            return `<div class="relative h-16 bg-white/5 rounded-xl overflow-hidden flex items-center px-6 border border-white/10"><div class="absolute top-0 left-0 h-full bg-blue-500 opacity-20 transition-all duration-700" style="width: ${pct}%"></div><div class="relative z-10 w-full flex justify-between items-center"><span class="text-lg font-medium">${opt}</span><div class="text-right"><span class="font-bold text-xl mr-2">${pct}%</span> <span class="text-xs text-gray-400">(${p.votes[i]})</span></div></div></div>`;
-                        }).join('')}
-                    </div>
-                    <div class="flex justify-between items-center pt-6 border-t border-white/10"><div class="text-gray-400">${total} total votes</div><button onclick="toggleStatus('${p.pollId || p._id}', '${isActive ? 'closed' : 'active'}')" class="px-6 py-3 rounded-xl font-bold transition text-white ${isActive ? 'bg-red-500 hover:bg-red-600' : 'bg-green-600 hover:bg-green-700'}">${isActive ? 'Close Voting' : 'Re-open Voting'}</button></div>
-                </div>
-            </div>`;
-        }
+        function renderFocusedModal() { if (!state.focusedPoll) return ''; const p = state.focusedPoll; const total = p.votes.reduce((a,b)=>a+b,0); const isActive = p.status === 'active'; const title = p.question || p.title || "Untitled"; const insight = generateInsight(p, total); return `<div class="focus-overlay flex items-center justify-center animate-slide-up"><div class="w-full max-w-3xl glass p-8 rounded-3xl shadow-2xl relative"><button onclick="updateState({focusedPoll: null})" class="absolute top-6 right-6 text-gray-400 hover:text-white bg-white/10 w-10 h-10 rounded-full flex items-center justify-center transition"><i class="fa-solid fa-xmark"></i></button><div class="flex items-center gap-4 mb-6"><span class="badge ${isActive ? 'badge-active' : 'badge-closed'} text-sm px-3 py-1">${isActive ? 'LIVE' : 'CLOSED'}</span></div><h2 class="text-3xl font-bold mb-6 leading-tight">${title}</h2><div class="ai-card ${insight.style} border-l-4 p-5 rounded-lg mb-8 flex gap-4"><div class="text-2xl pt-1"><i class="fa-solid ${insight.icon}"></i></div><div><div class="text-xs font-bold uppercase tracking-widest opacity-80 mb-1">${insight.title}</div><div class="text-sm leading-relaxed opacity-90">${insight.text}</div></div></div><div class="space-y-3 mb-8">${p.options.map((opt, i) => { const pct = total ? Math.round((p.votes[i]/total)*100) : 0; return `<div class="relative h-16 bg-white/5 rounded-xl overflow-hidden flex items-center px-6 border border-white/10"><div class="absolute top-0 left-0 h-full bg-blue-500 opacity-20 transition-all duration-700" style="width: ${pct}%"></div><div class="relative z-10 w-full flex justify-between items-center"><span class="text-lg font-medium">${opt}</span><div class="text-right"><span class="font-bold text-xl mr-2">${pct}%</span> <span class="text-xs text-gray-400">(${p.votes[i]})</span></div></div></div>`; }).join('')}</div><div class="flex justify-between items-center pt-6 border-t border-white/10"><div class="text-gray-400">${total} total votes</div><button onclick="toggleStatus('${p.pollId || p._id}', '${isActive ? 'closed' : 'active'}')" class="px-6 py-3 rounded-xl font-bold transition text-white ${isActive ? 'bg-red-500 hover:bg-red-600' : 'bg-green-600 hover:bg-green-700'}">${isActive ? 'Close Voting' : 'Re-open Voting'}</button></div></div></div>`; }
 
         // 8. RENDER LOOP
-        function render() {
-            const app = document.getElementById('app');
-            if (pollRefreshInterval) clearInterval(pollRefreshInterval);
-            if (Views[state.view]) {
-                app.innerHTML = Views[state.view]();
-                if (['lecturer-dashboard', 'student-poll-list', 'student-results'].includes(state.view)) startAutoRefresh();
-            }
-        }
+        function render() { const app = document.getElementById('app'); if (Views[state.view]) app.innerHTML = Views[state.view](); }
 
         // 9. LOGIC
-        async function handleCreate(e) {
-            e.preventDefault(); const btn = document.getElementById('btn-create'); const spin = document.getElementById('spinner-create');
-            btn.disabled = true; spin.classList.remove('hidden');
-            const q = document.getElementById('question').value; const opts = Array.from(document.querySelectorAll('.opt-input')).map(i=>i.value).filter(v=>v);
-            const pl = { question: q, options: opts }; if (state.existingRoomCode) pl.roomCode = state.existingRoomCode;
-            try { 
-                const createdPoll = await apiCall('/polls', 'POST', pl); 
-                const activeCode = state.existingRoomCode || createdPoll.roomCode;
-                const res = await apiCall(`/polls/room/${activeCode}`); 
-                const polls = res.data ? res.data : (Array.isArray(res) ? res : [res]);
-                state.isCreating = false;
-                updateState({ view: 'lecturer-dashboard', pollsList: polls, existingRoomCode: activeCode });
-                closeCreateModal(); showToast("Poll Created!");
+        async function handleLogin(e) {
+            e.preventDefault(); const btn = document.getElementById('btn-login'); const spin = document.getElementById('spinner-login'); btn.disabled = true; spin.classList.remove('hidden');
+            const email = document.getElementById('email').value; const password = document.getElementById('password').value;
+            try {
+                const data = await apiCall('/users/login', 'POST', { email, password });
+                console.log("USER DATA RECEIVED:", data); // DEBUG LINE
+                updateState({ view: 'lecturer-dashboard', token: data.token, user: data, pollsList: [], existingRoomCode: null });
+                showToast("Welcome back!");
             } catch(e) { showToast(e.message); } finally { btn.disabled = false; spin.classList.add('hidden'); }
         }
 
-        async function handleJoin(e) {
-            e.preventDefault(); const code = document.getElementById('room-code-input').value.trim().toUpperCase();
-            try {
-                const res = await apiCall(`/polls/room/${code}`);
-                let polls = res.data ? res.data : (Array.isArray(res) ? res : [res]);
-                if(!polls.length) throw new Error("Room not found");
-                if (polls.length > 1) updateState({ view: 'student-poll-list', pollsList: polls }); 
-                else updateState({ view: 'student-vote', poll: polls[0], pollsList: polls });
-            } catch (err) { showToast("Invalid Code"); }
-        }
-
+        async function handleRegister(e) { e.preventDefault(); const btn = document.getElementById('btn-reg'); const spin = document.getElementById('spinner-reg'); btn.disabled = true; spin.classList.remove('hidden'); const name = document.getElementById('reg-name').value; const email = document.getElementById('reg-email').value; const password = document.getElementById('reg-password').value; try { const data = await apiCall('/users/register', 'POST', { name, email, password }); updateState({ view: 'lecturer-dashboard', token: data.token, user: data, pollsList: [], existingRoomCode: null }); showToast("Account created!"); } catch(e) { showToast(e.message); } finally { btn.disabled = false; spin.classList.add('hidden'); } }
+        async function handleCreate(e) { e.preventDefault(); const btn = document.getElementById('btn-create'); const spin = document.getElementById('spinner-create'); btn.disabled = true; spin.classList.remove('hidden'); const q = document.getElementById('question').value; const opts = Array.from(document.querySelectorAll('.opt-input')).map(i=>i.value).filter(v=>v); const pl = { question: q, options: opts }; if (state.existingRoomCode) pl.roomCode = state.existingRoomCode; try { const createdPoll = await apiCall('/polls', 'POST', pl); const activeCode = state.existingRoomCode || createdPoll.roomCode; const res = await apiCall(`/polls/room/${activeCode}`); const polls = res.data ? res.data : (Array.isArray(res) ? res : [res]); state.isCreating = false; socket.emit('join_room', activeCode); updateState({ view: 'lecturer-dashboard', pollsList: polls, existingRoomCode: activeCode }); closeCreateModal(); showToast("Poll Created!"); } catch(e) { showToast(e.message); } finally { btn.disabled = false; spin.classList.add('hidden'); } }
+        async function handleJoin(e) { e.preventDefault(); const code = document.getElementById('room-code-input').value.trim().toUpperCase(); try { const res = await apiCall(`/polls/room/${code}`); let polls = res.data ? res.data : (Array.isArray(res) ? res : [res]); if(!polls.length) throw new Error("Room not found"); socket.emit('join_room', code); if (polls.length > 1) updateState({ view: 'student-poll-list', pollsList: polls }); else updateState({ view: 'student-vote', poll: polls[0], pollsList: polls }); } catch (err) { showToast("Invalid Code"); } }
         function focusPoll(id) { const p = state.pollsList.find(x => (x.pollId === id || x._id === id)); updateState({ focusedPoll: p }); }
-        
         function openCreateModal() { state.isCreating = true; document.getElementById('create-modal').classList.remove('hidden'); }
         function closeCreateModal() { state.isCreating = false; document.getElementById('create-modal').classList.add('hidden'); }
         function addOptionInput() { const d = document.createElement('input'); d.className = 'opt-input w-full bg-gray-50 border border-gray-200 rounded-lg p-3 outline-none mt-2'; d.placeholder = 'Next Option'; d.required = true; document.getElementById('options-list').appendChild(d); }
-        
-        async function toggleStatus(id, status) {
-            try { await apiCall(`/polls/${id}/status`, 'PATCH', { status }); forceRefresh(); showToast(`Status: ${status}`); } catch(e) {}
-        }
-        async function forceRefresh() {
-            if (!state.existingRoomCode) return;
-            const res = await apiCall(`/polls/room/${state.existingRoomCode}`);
-            const polls = res.data ? res.data : (Array.isArray(res) ? res : [res]);
-            let focused = state.focusedPoll ? polls.find(p => (p._id === state.focusedPoll._id || p.pollId === state.focusedPoll.pollId)) : null;
-            updateState({ pollsList: polls, focusedPoll: focused });
-        }
-
+        async function toggleStatus(id, status) { try { await apiCall(`/polls/${id}/status`, 'PATCH', { status }); } catch(e) {} }
         function selectPoll(i) { updateState({ view: 'student-vote', poll: state.pollsList[i] }); }
-        async function handleVote(opt) {
-            try {
-                const id = state.poll.pollId || state.poll._id; await apiCall(`/polls/${id}/vote`, 'POST', { option: opt });
-                updateState({ view: 'student-results', poll: state.poll }); showToast("Vote Sent!");
-            } catch (e) { showToast("Error voting"); }
-        }
-
-        function startAutoRefresh() {
-            pollRefreshInterval = setInterval(async () => {
-                if (state.isCreating) return;
-                try {
-                    if (state.view === 'lecturer-dashboard' && state.existingRoomCode) await forceRefresh();
-                    else if (state.view.includes('student') && state.pollsList.length > 0) {
-                         const code = state.pollsList[0].roomCode;
-                         const res = await apiCall(`/polls/room/${code}`);
-                         updateState({ pollsList: res.data || res });
-                    }
-                } catch(e) {}
-            }, 5000);
-        }
+        async function handleVote(opt) { try { const id = state.poll.pollId || state.poll._id; await apiCall(`/polls/${id}/vote`, 'POST', { option: opt }); updateState({ view: 'student-results', poll: state.poll }); showToast("Vote Sent!"); } catch (e) { showToast("Error voting"); } }
+        function startAutoRefresh() { pollRefreshInterval = setInterval(async () => { if (state.isCreating) return; try { if (state.view === 'lecturer-dashboard' && state.existingRoomCode) { const res = await apiCall(`/polls/room/${state.existingRoomCode}`); const polls = res.data || res; let focused = state.focusedPoll ? polls.find(p => (p._id === state.focusedPoll._id || p.pollId === state.focusedPoll.pollId)) : null; updateState({ pollsList: polls, focusedPoll: focused }); } else if (state.view.includes('student') && state.pollsList.length > 0) { const code = state.pollsList[0].roomCode; const res = await apiCall(`/polls/room/${code}`); updateState({ pollsList: res.data || res }); } } catch(e) {} }, 5000); }
         function copyCode(c) { navigator.clipboard.writeText(c); showToast("Copied!"); }
 
         render();

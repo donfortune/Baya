@@ -3,183 +3,278 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Baya - Real Time Polling</title>
+    <title>SocialFind - Prototype</title>
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
-        .bar-fill { transition: width 0.5s ease-out; }
-        .pulse-dot { animation: pulse 2s infinite; }
-        @keyframes pulse {
-            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); }
-            70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); }
-            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
-        }
+        body { font-family: 'Inter', sans-serif; background-color: #F8FAFC; }
+        .glass-panel { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); }
+        .slide-up { animation: slideUp 0.3s ease-out; }
+        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .pulse-ring { animation: pulse-ring 2s infinite; }
+        @keyframes pulse-ring { 0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); } 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); } }
     </style>
 </head>
 <body>
-
     <div id="root"></div>
 
     <script type="text/babel">
+        const { useState, useEffect } = React;
 
-        // --- SIMULATED BACKEND LOGIC (The "Fake" AI) ---
-        const generateInsight = (votes, total) => {
-            // Logic: If "I'm Lost" (Option 1) is > 40%, trigger alert
-            const lostPercent = (votes[1] / total) * 100;
-            if (lostPercent > 40) {
-                return {
-                    type: 'danger',
-                    title: '⚠️ Confusion Alert',
-                    message: 'High number of students are lost. Suggested Action: Pause and re-explain using a local analogy.'
-                };
+        // --- Mock Data (Simulating your Database) ---
+        const INITIAL_PRODUCTS = [
+            {
+                id: 1,
+                title: "iPhone 12 Pro Max (Pacific Blue)",
+                price: 280000,
+                condition: "Used",
+                platform: "twitter",
+                sourceUser: "@TechVendor_NG",
+                location: "Lagos, Ikeja",
+                image: "https://images.unsplash.com/photo-1605236453806-6ff368512188?auto=format&fit=crop&q=80&w=400",
+                rawText: "Urgent sales!! iPhone 12 Pro Max, 256gb. Face ID works perfectly. Price: 280k. Location: Ikeja."
+            },
+            {
+                id: 2,
+                title: "Nike Air Jordan 1 - High",
+                price: 45000,
+                condition: "New",
+                platform: "instagram",
+                sourceUser: "@Kicks_Abj",
+                location: "Abuja",
+                image: "https://images.unsplash.com/photo-1552346154-21d32810aba3?auto=format&fit=crop&q=80&w=400",
+                rawText: "Fresh landing. Size 42-45 available. DM for price. 45k last price. Nationwide delivery."
+            },
+            {
+                id: 3,
+                title: "Sony PlayStation 5 Console",
+                price: 420000,
+                condition: "New",
+                platform: "twitter",
+                sourceUser: "@GamerBoy_Dave",
+                location: "Lagos, Lekki",
+                image: "https://images.unsplash.com/photo-1606813907291-d86efa9b94db?auto=format&fit=crop&q=80&w=400",
+                rawText: "PS5 Standard edition available. Brand new sealed. 420k only today. Pick up at Lekki Phase 1."
             }
-            if (total > 50 && lostPercent < 15) {
-                return {
-                    type: 'success',
-                    title: '✅ All Clear',
-                    message: 'Class comprehension is high. You may proceed to the next topic.'
-                };
-            }
-            return null;
-        };
+        ];
 
-        function App() {
-            // State for the poll
-            const [votes, setVotes] = useState([0, 0]); // Option 1, Option 2
-            const [total, setTotal] = useState(0);
-            const [active, setActive] = useState(false);
-            const [insight, setInsight] = useState(null);
+        // --- Components ---
 
-            // Simulation: Fake students voting
-            useEffect(() => {
-                let interval;
-                if (active) {
-                    interval = setInterval(() => {
-                        setVotes(prev => {
-                            // Randomly decide which option gets a vote
-                            // Weighted towards "I'm Lost" to trigger the demo alert
-                            const randomChoice = Math.random() > 0.4 ? 1 : 0; 
-                            const newVotes = [...prev];
-                            newVotes[randomChoice] += 1;
-                            
-                            const newTotal = newVotes.reduce((a, b) => a + b, 0);
-                            setTotal(newTotal);
-                            
-                            // Check AI Logic
-                            setInsight(generateInsight(newVotes, newTotal));
-                            
-                            return newVotes;
-                        });
-                    }, 200); // Fast voting (5 votes per second)
-                }
-                return () => clearInterval(interval);
-            }, [active]);
+        const PlatformIcon = ({ platform }) => (
+            <span className={`flex items-center justify-center w-6 h-6 rounded-full text-white text-xs ${platform === 'twitter' ? 'bg-black' : 'bg-gradient-to-tr from-yellow-400 via-red-500 to-purple-500'}`}>
+                <i className={`fab fa-${platform}`}></i>
+            </span>
+        );
 
-            const handleStart = () => {
-                setVotes([0,0]);
-                setTotal(0);
-                setInsight(null);
-                setActive(true);
+        const ProductCard = ({ product }) => (
+            <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden hover:shadow-md transition-shadow cursor-pointer slide-up">
+                <div className="h-48 bg-slate-100 relative">
+                    <img src={product.image} alt={product.title} className="w-full h-full object-cover" />
+                    <div className="absolute top-3 right-3 bg-white/90 backdrop-blur px-2 py-1 rounded-lg text-xs font-semibold text-slate-700 shadow-sm">
+                        {product.condition}
+                    </div>
+                </div>
+                <div className="p-4">
+                    <div className="flex justify-between items-start mb-2">
+                        <div>
+                            <h3 className="font-bold text-slate-800 line-clamp-1">{product.title}</h3>
+                            <div className="flex items-center gap-1 text-xs text-slate-500 mt-1">
+                                <PlatformIcon platform={product.platform} />
+                                <span>{product.sourceUser}</span>
+                                <span>•</span>
+                                <span>{product.location}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="mt-3 flex justify-between items-center">
+                        <span className="text-lg font-bold text-emerald-600">₦{product.price.toLocaleString()}</span>
+                        <button className="text-xs font-medium text-blue-600 bg-blue-50 px-3 py-1.5 rounded-full hover:bg-blue-100">
+                            View Deal
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+
+        const ImportModal = ({ isOpen, onClose, onImport }) => {
+            const [step, setStep] = useState('input'); // input, processing, result
+            const [url, setUrl] = useState('');
+            const [logs, setLogs] = useState([]);
+
+            if (!isOpen) return null;
+
+            const simulateProcessing = () => {
+                setStep('processing');
+                setLogs([]);
+                
+                const steps = [
+                    "Connecting to Twitter Headless Browser...",
+                    "Bypassing Anti-Bot verification...",
+                    "Tweet found: 'MacBook M1 Air for sale...'",
+                    "Sending text to OpenAI (GPT-4)...",
+                    "Extracting Price: ₦350,000...",
+                    "Extracting Condition: Used...",
+                    "Success!"
+                ];
+
+                steps.forEach((log, index) => {
+                    setTimeout(() => {
+                        setLogs(prev => [...prev, log]);
+                        if (index === steps.length - 1) {
+                            setTimeout(() => {
+                                onImport(); 
+                                onClose(); 
+                                setStep('input'); 
+                                setUrl('');
+                                setLogs([]);
+                            }, 1000);
+                        }
+                    }, index * 800);
+                });
             };
 
-            const handleStop = () => setActive(false);
-
-            // Calculate percentages
-            const getPercent = (index) => total === 0 ? 0 : Math.round((votes[index] / total) * 100);
-
             return (
-                <div className="min-h-screen flex flex-col items-center justify-center p-4">
-                    
-                    {/* PHONE SIMULATOR FRAME */}
-                    <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden border border-gray-200">
-                        
-                        {/* HEADER */}
-                        <div className="bg-blue-600 p-6 text-white flex justify-between items-center">
-                            <div>
-                                <h1 className="text-xl font-bold tracking-tight">Baya <span className="text-blue-200 font-light">ClassPulse</span></h1>
-                                <p className="text-xs text-blue-100 opacity-80">Room: MATH-101 • 1,240 Students</p>
-                            </div>
-                            <div className={`w-3 h-3 bg-green-400 rounded-full ${active ? 'pulse-dot' : ''}`}></div>
+                <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden slide-up">
+                        <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+                            <h2 className="text-lg font-bold text-slate-800">
+                                {step === 'input' ? 'Import from Social' : 'AI Processing'}
+                            </h2>
+                            <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><i className="fas fa-times"></i></button>
                         </div>
 
-                        {/* BODY */}
-                        <div className="p-6 space-y-8">
-                            
-                            {/* THE QUESTION */}
-                            <div className="text-center">
-                                <span className="bg-gray-100 text-gray-500 text-xs font-bold px-2 py-1 rounded uppercase tracking-wide">Live Poll</span>
-                                <h2 className="text-2xl font-bold text-gray-800 mt-2 leading-tight">
-                                    Do you understand the concept of "Thermodynamics"?
-                                </h2>
-                            </div>
-
-                            {/* AI INSIGHT CARD (Appears dynamically) */}
-                            {insight && (
-                                <div className={`p-4 rounded-xl border-l-4 animate-bounce ${
-                                    insight.type === 'danger' ? 'bg-red-50 border-red-500 text-red-900' : 'bg-green-50 border-green-500 text-green-900'
-                                }`}>
-                                    <div className="flex items-start gap-3">
-                                        <div className="text-2xl">{insight.type === 'danger' ? '🚨' : '✨'}</div>
-                                        <div>
-                                            <h3 className="font-bold text-sm">{insight.title}</h3>
-                                            <p className="text-xs mt-1 leading-relaxed opacity-90">{insight.message}</p>
-                                        </div>
+                        <div className="p-6">
+                            {step === 'input' ? (
+                                <>
+                                    <p className="text-sm text-slate-500 mb-4">Paste a link from Twitter or Instagram. Our AI will clean it up.</p>
+                                    <div className="relative mb-4">
+                                        <i className="fas fa-link absolute left-3 top-3.5 text-slate-400"></i>
+                                        <input 
+                                            type="text" 
+                                            value={url}
+                                            onChange={(e) => setUrl(e.target.value)}
+                                            placeholder="https://twitter.com/..." 
+                                            className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                                        />
                                     </div>
-                                </div>
-                            )}
-
-                            {/* THE BARS */}
-                            <div className="space-y-4">
-                                {/* OPTION A */}
-                                <div className="relative h-16 bg-gray-50 rounded-xl overflow-hidden border border-gray-100 flex items-center px-4">
-                                    <div className="absolute top-0 left-0 h-full bg-blue-100 bar-fill" style={{width: `${getPercent(0)}%`}}></div>
-                                    <div className="relative z-10 w-full flex justify-between items-center">
-                                        <span className="font-semibold text-gray-700">Yes, I get it</span>
-                                        <span className="font-bold text-blue-700 text-xl">{getPercent(0)}%</span>
+                                    <div className="flex gap-3">
+                                        <button 
+                                            onClick={() => setUrl("https://twitter.com/user/status/123456")}
+                                            className="flex-1 py-3 text-sm font-medium text-slate-600 bg-slate-100 rounded-xl hover:bg-slate-200 transition-colors">
+                                            Auto-Fill Demo
+                                        </button>
+                                        <button 
+                                            onClick={simulateProcessing}
+                                            disabled={!url}
+                                            className={`flex-1 py-3 text-sm font-bold text-white rounded-xl transition-all ${url ? 'bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-200' : 'bg-slate-300 cursor-not-allowed'}`}>
+                                            Start Import
+                                        </button>
                                     </div>
-                                </div>
-
-                                {/* OPTION B */}
-                                <div className="relative h-16 bg-gray-50 rounded-xl overflow-hidden border border-gray-100 flex items-center px-4">
-                                    <div className="absolute top-0 left-0 h-full bg-red-100 bar-fill" style={{width: `${getPercent(1)}%`}}></div>
-                                    <div className="relative z-10 w-full flex justify-between items-center">
-                                        <span className="font-semibold text-gray-700">No, I'm lost</span>
-                                        <span className="font-bold text-red-700 text-xl">{getPercent(1)}%</span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* METADATA */}
-                            <div className="text-center text-gray-400 text-sm">
-                                {total} votes received • 15ms latency
-                            </div>
-
-                        </div>
-
-                        {/* FOOTER CONTROLS */}
-                        <div className="bg-gray-50 p-6 border-t border-gray-100 flex gap-4">
-                            {!active ? (
-                                <button onClick={handleStart} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition shadow-lg shadow-blue-200">
-                                    Start Polling
-                                </button>
+                                </>
                             ) : (
-                                <button onClick={handleStop} className="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-xl transition shadow-lg shadow-red-200">
-                                    Stop Session
-                                </button>
+                                <div className="space-y-4">
+                                    <div className="flex justify-center py-4">
+                                        <div className="w-16 h-16 rounded-full border-4 border-blue-100 border-t-blue-600 animate-spin"></div>
+                                    </div>
+                                    <div className="bg-slate-900 rounded-lg p-4 font-mono text-xs text-green-400 h-40 overflow-y-auto">
+                                        {logs.map((log, i) => (
+                                            <div key={i} className="mb-1">> {log}</div>
+                                        ))}
+                                        <div className="animate-pulse">> _</div>
+                                    </div>
+                                </div>
                             )}
                         </div>
                     </div>
                 </div>
             );
-        }
+        };
+
+        const App = () => {
+            const [products, setProducts] = useState(INITIAL_PRODUCTS);
+            const [isModalOpen, setIsModalOpen] = useState(false);
+            const [filter, setFilter] = useState('All');
+
+            const handleNewImport = () => {
+                const newProduct = {
+                    id: products.length + 1,
+                    title: "MacBook Air M1 (Silver)",
+                    price: 350000,
+                    condition: "Used",
+                    platform: "twitter",
+                    sourceUser: "@LagosGadgets",
+                    location: "Lagos, Yaba",
+                    image: "https://images.unsplash.com/photo-1611186871348-b1ce696e52c9?auto=format&fit=crop&q=80&w=400",
+                    rawText: "MacBook Air M1 base model. 8/256. Battery cycle count 45. Clean as new. 350k non-negotiable."
+                };
+                setProducts([newProduct, ...products]);
+            };
+
+            return (
+                <div className="min-h-screen pb-20">
+                    {/* Header */}
+                    <nav className="sticky top-0 z-30 bg-white/80 backdrop-blur border-b border-slate-200">
+                        <div className="max-w-md mx-auto px-4 h-16 flex justify-between items-center">
+                            <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-lg">S</div>
+                                <span className="font-bold text-slate-800 text-lg tracking-tight">SocialFind</span>
+                            </div>
+                            <button 
+                                onClick={() => setIsModalOpen(true)}
+                                className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center hover:bg-slate-700 transition-colors shadow-lg shadow-slate-300">
+                                <i className="fas fa-plus text-xs"></i>
+                            </button>
+                        </div>
+                    </nav>
+
+                    {/* Main Content */}
+                    <main className="max-w-md mx-auto px-4 pt-6">
+                        
+                        {/* Hero Text */}
+                        <div className="mb-8">
+                            <h1 className="text-2xl font-bold text-slate-900 mb-2">Hidden gems from<br/>the timeline.</h1>
+                            <p className="text-slate-500 text-sm">We find the best deals buried in Twitter & Instagram posts so you don't have to scroll.</p>
+                        </div>
+
+                        {/* Search/Filter Simulation */}
+                        <div className="flex gap-2 mb-6 overflow-x-auto pb-2 scrollbar-hide">
+                            {['All', 'Phones', 'Laptops', 'Fashion', 'Gaming'].map(cat => (
+                                <button 
+                                    key={cat}
+                                    onClick={() => setFilter(cat)}
+                                    className={`px-4 py-2 rounded-full text-xs font-medium whitespace-nowrap transition-all ${filter === cat ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 border border-slate-200'}`}>
+                                    {cat}
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Product Grid */}
+                        <div className="grid gap-6">
+                            {products.map(product => (
+                                <ProductCard key={product.id} product={product} />
+                            ))}
+                        </div>
+
+                        {/* Empty State / Bottom Text */}
+                        <div className="mt-12 text-center pb-8">
+                            <p className="text-xs text-slate-400">End of valid results</p>
+                        </div>
+                    </main>
+
+                    <ImportModal 
+                        isOpen={isModalOpen} 
+                        onClose={() => setIsModalOpen(false)}
+                        onImport={handleNewImport}
+                    />
+                </div>
+            );
+        };
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
-
     </script>
 </body>
 </html>

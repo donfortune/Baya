@@ -1,12 +1,15 @@
 const express = require('express');
 const router = express.Router();
 const pollController = require('../Controllers/pollController');
+const authMiddleware = require('../Middlewares/authMiddleware');
 
 router.get('/polls', pollController.getAllPolls);
-router.post('/polls', pollController.createPoll);
+router.post('/polls', authMiddleware.protectRoutes, pollController.createPoll);
 router.get('/polls/:pollId', pollController.getPollDetails);
 router.get('/polls/room/:roomCode', pollController.getPollByRoomCode); 
-router.patch('/polls/:pollId/status', pollController.updatePollStatus);
+router.patch('/polls/:pollId/status', authMiddleware.protectRoutes, pollController.updatePollStatus);
 router.post('/polls/:pollId/vote', pollController.votePoll);
+router.post('/polls/:pollId/ResetVotes', pollController.resetVotes);
+
 
 module.exports = router;
