@@ -29,6 +29,20 @@ io.on('connection', (socket) => {
         console.log(`Socket ${socket.id} joined ${roomCode}`);
     });
 
+    // Add Panic Button Event
+    socket.on('panic_button', (roomCode) => {
+        console.log(`Panic button pressed in room: ${roomCode}`);
+        // Broadcast to all clients in the room except the sender
+        socket.to(roomCode).emit('panic_alert', { message: 'Panic button activated!' });
+    });
+
+    //Add whsipers event
+    socket.on('whisper', ({ roomCode, message }) => {
+        console.log(`Whisper in room ${roomCode}: ${message}`);
+        // Broadcast the whisper to all clients in the room except the sender
+        socket.to(roomCode).emit('whisper_message', { message });
+    });
+
     socket.on('disconnect', () => {
         console.log('Client disconnected:', socket.id);
     });
