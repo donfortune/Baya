@@ -156,6 +156,17 @@ exports.createPoll = async (req, res) => {
         });
 
         const savedPoll = await newPoll.save();
+
+        // ============================================================
+        // 🚀 THE FIX: Shout "New Poll!" to everyone in the room
+        // ============================================================
+        const io = req.app.get('io');
+        if (io) {
+            console.log(`📡 Broadcasting new poll to room: ${finalRoomCode}`);
+            io.to(finalRoomCode).emit('poll_updated', savedPoll);
+        }
+        // ============================================================
+        
         res.status(201).json(savedPoll);
 
     } catch (error) {
@@ -213,33 +224,71 @@ exports.getPollByRoomCode = async (req, res) => {
 }
 
 
+// exports.updatePollStatus = async (req, res) => {
+//     try {
+//         const { pollId } = req.params;
+//         const { status } = req.body;
+
+//         if (!["active", "closed"].includes(status)) {
+//             return res.status(400).json({
+//                 message: "Status must be 'active' or 'closed'"
+//             });
+//         }
+
+//         const updated = await poll.findOneAndUpdate(
+//             { pollId },
+//             { status, closedAt: status === "closed" ? new Date() : null },
+//             { new: true }
+//         );
+
+//         if (!updated) {
+//             return res.status(404).json({ message: "Poll not found" });
+//         }
+
+//         // ============================================================
+//         // 🚀 CRITICAL: The Loudspeaker (Socket.io)
+//         // ============================================================
+//         const io = req.app.get('io');
+//         io.to(updated.roomCode).emit('poll_updated', updated);
+//         // ============================================================
+
+//         res.status(200).json(updated);
+
+//     } catch (error) {
+//         console.error("Error updating poll status:", error);
+//         res.status(500).json({ message: "Server Error" });
+//     }
+// };
+
 exports.updatePollStatus = async (req, res) => {
     try {
-        const { pollId } = req.params;
+        const { pollId } = req.params; // This captures the ID passed in the URL
         const { status } = req.body;
 
+        // 1. Validation
         if (!["active", "closed"].includes(status)) {
             return res.status(400).json({
                 message: "Status must be 'active' or 'closed'"
             });
         }
 
-        const updated = await poll.findOneAndUpdate(
-            { pollId },
+        // 2. Database Update (FIXED)
+        // We use findByIdAndUpdate to target the MongoDB '_id'
+        const updated = await poll.findByIdAndUpdate(
+            pollId, 
             { status, closedAt: status === "closed" ? new Date() : null },
-            { new: true }
+            { new: true } // Return the updated document
         );
 
         if (!updated) {
             return res.status(404).json({ message: "Poll not found" });
         }
 
-        // ============================================================
-        // 🚀 CRITICAL: The Loudspeaker (Socket.io)
-        // ============================================================
+        // 3. 🚀 Broadcast via Socket
         const io = req.app.get('io');
-        io.to(updated.roomCode).emit('poll_updated', updated);
-        // ============================================================
+        if (io) {
+            io.to(updated.roomCode).emit('poll_updated', updated);
+        }
 
         res.status(200).json(updated);
 
@@ -259,7 +308,9 @@ exports.votePoll = async (req, res) => {
         const { userId } = req.body;  // Get from request body
         const voterId = userId || req.ip;  // Fallback to IP if no userId
 
-        const pollDetails = await poll.findOne({ pollId });
+        // const pollDetails = await poll.findOne({ pollId });
+        const pollDetails = await poll.findById(pollId);
+        
 
         if (!pollDetails) {
             return res.status(404).json({ message: "Poll not found" });
