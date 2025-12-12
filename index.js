@@ -43,6 +43,26 @@ io.on('connection', (socket) => {
         socket.to(roomCode).emit('whisper_message', { message });
     });
 
+    // // Add emoji reaction event
+    // socket.on('emoji_reaction', ({ roomCode, emoji }) => {
+    //     console.log(`Emoji reaction in room ${roomCode}: ${emoji}`);
+    //     // Broadcast the emoji reaction to all clients in the room except the sender
+    //     socket.to(roomCode).emit('emoji_reaction_broadcast', { emoji });
+    // });
+
+    // =======================================================
+    // 4. MISSING PIECE: EMOJI REACTIONS 🚀
+    // =======================================================
+    socket.on('reaction', ({ roomCode, emoji }) => {
+        console.log(`Reaction in ${roomCode}: ${emoji}`);
+        // "Loudspeaker": Send to everyone in the room (Teacher AND Student)
+        io.to(roomCode).emit('reaction_received', { 
+            emoji, 
+            id: Date.now() + Math.random() // Unique ID for animation
+        });
+    });
+    // =======================================================
+
     socket.on('disconnect', () => {
         console.log('Client disconnected:', socket.id);
     });
