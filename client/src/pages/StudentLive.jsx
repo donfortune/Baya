@@ -13,6 +13,8 @@ const StudentLive = () => {
   const [polls, setPolls] = useState([]);
   const [votedPolls, setVotedPolls] = useState([]);
   const [whisperText, setWhisperText] = useState('');
+  const [reactions, setReactions] = useState([]); 
+  const [panicCooldown, setPanicCooldown] = useState(false); // NEW: Cooldown state
 
   // Load voted polls
   useEffect(() => {
@@ -32,25 +34,40 @@ const StudentLive = () => {
     }
   }, [roomCode]);
 
-  // 2. JOIN ROOM
+  // 2. JOIN ROOM & LISTEN
   useEffect(() => {
     fetchPolls();
     if(socket) socket.emit('join_room', roomCode);
   }, [roomCode, socket, fetchPolls]);
 
-  // 3. LISTEN FOR UPDATES
+  // 3. SOCKET EVENTS
   useEffect(() => {
     if(!socket) return;
+    
+    // Poll Updates
     const handleUpdate = () => fetchPolls();
     socket.on('poll_updated', handleUpdate);
-    return () => socket.off('poll_updated', handleUpdate);
+
+    // Reactions (To show them flying)
+    const handleReaction = (data) => {
+        setReactions(prev => [...prev, data]);
+        setTimeout(() => {
+            setReactions(prev => prev.filter(r => r.id !== data.id));
+        }, 2000);
+    };
+    socket.on('reaction_received', handleReaction);
+
+    return () => {
+        socket.off('poll_updated', handleUpdate);
+        socket.off('reaction_received', handleReaction);
+    };
   }, [socket, fetchPolls]);
 
   // --- ACTIONS ---
   const handleVote = async (pollId, option) => {
     try {
       await axios.post(`http://localhost:3000/api/polls/${pollId}/vote`, { option });
-      toast.success("Vote Submitted!");
+      toast.success("Vote Submitted!", { autoClose: 1500, hideProgressBar: true });
       const newVotedList = [...votedPolls, pollId];
       setVotedPolls(newVotedList);
       localStorage.setItem(`voted_${roomCode}`, JSON.stringify(newVotedList));
@@ -60,34 +77,44 @@ const StudentLive = () => {
     }
   };
 
-  const sendPanic = () => { if(socket) { socket.emit('panic_button', roomCode); toast.error("Signal sent!", { icon: "🤯" }); }};
+  // --- UPDATED PANIC LOGIC (Prevents Spam) ---
+  const sendPanic = () => {
+    if (panicCooldown) return; // Block if cooling down
+
+    if (socket) {
+        socket.emit('panic_button', roomCode);
+        
+        // Use toastId to prevent duplicate stacking
+        if (!toast.isActive('panic-toast')) {
+            toast.error("Signal sent!", { 
+                icon: "🤯", 
+                toastId: 'panic-toast',
+                autoClose: 2000,
+                hideProgressBar: true
+            });
+        }
+
+        // Activate visual cooldown
+        setPanicCooldown(true);
+        setTimeout(() => setPanicCooldown(false), 2000);
+    }
+  };
   
   const sendWhisper = (e) => { 
     e.preventDefault(); 
     if(whisperText.trim() && socket) { 
         socket.emit('whisper', { roomCode, message: whisperText }); 
         setWhisperText(''); 
-        toast.info("Sent!", { icon: "🤫" }); 
+        toast.info("Sent!", { icon: "🤫", autoClose: 1000, hideProgressBar: true }); 
     }
   };
 
-  // --- NEW: SEND REACTION ---
   const sendReaction = (emoji) => {
-    if(socket) {
-        socket.emit('reaction', { roomCode, emoji });
-        // Tiny visual feedback for the student
-        toast(emoji, { 
-            position: "bottom-center", 
-            autoClose: 500, 
-            hideProgressBar: true, 
-            closeButton: false, 
-            className: "bg-transparent shadow-none text-4xl"
-        });
-    }
+    if(socket) socket.emit('reaction', { roomCode, emoji });
   };
 
   return (
-    <div className="flex flex-col min-h-screen p-4 pb-32 max-w-6xl mx-auto animate-slide-up">
+    <div className="flex flex-col min-h-screen p-4 pb-32 max-w-6xl mx-auto animate-slide-up relative overflow-hidden">
       
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
@@ -151,23 +178,45 @@ const StudentLive = () => {
         )}
       </div>
 
-      {/* --- FLOATING EMOJI BAR (NEW) --- */}
+      {/* --- FLOATING EMOJI LAYER --- */}
+      <div className="fixed bottom-0 right-4 w-24 h-screen pointer-events-none z-50 overflow-hidden">
+        {reactions.map((r) => (
+            <div 
+                key={r.id}
+                className="absolute bottom-0 text-5xl animate-float-up opacity-0"
+                style={{ 
+                    left: `${Math.random() * 50}%`,
+                    animationDuration: `${1.5 + Math.random()}s`
+                }}
+            >
+                {r.emoji}
+            </div>
+        ))}
+      </div>
+
+      {/* --- ACTION BARS --- */}
       <div className="fixed bottom-24 left-0 w-full flex justify-center gap-4 z-40 pointer-events-none">
         <div className="bg-black/60 backdrop-blur-xl p-2 rounded-full border border-white/20 flex gap-3 pointer-events-auto shadow-2xl">
             {['🔥', '😂', '👏', '❤️'].map(emoji => (
-                <button 
-                    key={emoji}
-                    onClick={() => sendReaction(emoji)}
-                    className="w-12 h-12 flex items-center justify-center text-2xl hover:scale-125 hover:bg-white/10 rounded-full transition active:scale-90"
-                >
+                <button key={emoji} onClick={() => sendReaction(emoji)} className="w-12 h-12 flex items-center justify-center text-2xl hover:scale-125 hover:bg-white/10 rounded-full transition active:scale-90">
                     {emoji}
                 </button>
             ))}
         </div>
       </div>
 
-      {/* PANIC & WHISPER TOOLS */}
-      <button onClick={sendPanic} className="fixed bottom-40 right-6 w-14 h-14 bg-red-500/20 border-2 border-red-500 rounded-full flex items-center justify-center text-2xl shadow-lg backdrop-blur-md active:scale-90 active:bg-red-600 transition-all z-50">🤯</button>
+      {/* UPDATED PANIC BUTTON (With Cooldown UI) */}
+      <button 
+        onClick={sendPanic} 
+        disabled={panicCooldown}
+        className={`fixed bottom-40 right-6 w-14 h-14 rounded-full flex items-center justify-center text-2xl shadow-lg backdrop-blur-md transition-all z-50 ${
+            panicCooldown 
+            ? 'bg-gray-500/20 border-2 border-gray-500 cursor-not-allowed opacity-50' 
+            : 'bg-red-500/20 border-2 border-red-500 active:scale-90 active:bg-red-600'
+        }`}
+      >
+        {panicCooldown ? '⏳' : '🤯'}
+      </button>
       
       <div className="fixed bottom-0 left-0 w-full p-4 z-40 bg-gradient-to-t from-[#0f172a] via-[#0f172a] to-transparent pt-12">
         <form onSubmit={sendWhisper} className="max-w-md mx-auto glass rounded-full p-1 pl-5 flex items-center border border-white/20 shadow-2xl bg-black/40">
