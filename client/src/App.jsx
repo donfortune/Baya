@@ -12,6 +12,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 // New Student Pages
 import StudentJoin from './pages/StudentJoin'; // 👈 Import
 import StudentLive from './pages/StudentLive'; // 👈 Import
+import LandingPage from './pages/LandingPage';
 
 function App() {
   return (
@@ -19,7 +20,8 @@ function App() {
       <SocketProvider>
         <div className="min-h-screen text-white">
           <Routes>
-            <Route path="/" element={<Home />} />
+            <Route path="/" element={<LandingPage />} />
+            {/* <Route path="/" element={<Home />} /> */}
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             
@@ -30,6 +32,7 @@ function App() {
             {/* Student Routes */}
             <Route path="/join" element={<StudentJoin />} />        {/* 👈 Route 1 */}
             <Route path="/room/:roomCode" element={<StudentLive />} /> {/* 👈 Route 2 */}
+            
           </Routes>
           
           <ToastContainer position="top-center" theme="dark" />

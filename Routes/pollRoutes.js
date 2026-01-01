@@ -10,6 +10,8 @@ router.get('/polls/room/:roomCode', pollController.getPollByRoomCode);
 router.patch('/polls/:pollId/status', authMiddleware.protectRoutes, pollController.updatePollStatus);
 router.post('/polls/:pollId/vote', pollController.votePoll);
 router.post('/polls/:pollId/ResetVotes', pollController.resetVotes);
+router.get('/polls/user/:userId', authMiddleware.protectRoutes, pollController.getAllPollsByUser);
+router.delete('/polls/:pollId', authMiddleware.protectRoutes, pollController.deletePoll);
 
 
 module.exports = router;
