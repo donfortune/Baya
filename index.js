@@ -4,6 +4,8 @@ const mongoose = require('mongoose');
 const pollRoutes = require('./Routes/pollRoutes');
 const roomRoutes = require('./Routes/roomRoutes')
 const userRoutes = require('./Routes/userRoutes');
+const metricRoutes = require('./Routes/metricsRoutes');
+const metricsMiddleware = require('./Middlewares/metricsMiddlewares');
 const cors = require('cors');
 const socket = require('socket.io');
 
@@ -88,9 +90,13 @@ mongoose.connect(process.env.MONGODB_URI, {
 
 
 app.use(express.json());
+
+app.use(metricsMiddleware);
+
 app.use('/api', pollRoutes);
 app.use('/api', roomRoutes);
 app.use('/api', userRoutes);
+app.use('/metrics', metricRoutes);
 
 
 
