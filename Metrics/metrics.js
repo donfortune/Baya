@@ -14,11 +14,27 @@ const httpTotalRequest = new client.Histogram({
     labelNames: ['method', 'route', 'status_code'],
     buckets: [0.1, 0.5, 1, 1.5, 2, 5] // buckets for response time from 100ms to 5s
 });
-
 register.registerMetric(httpTotalRequest);
+
+// total users metric
+const totalUsers = new client.Counter({
+    name: 'total_active_users',
+    help: 'Total number of active users'
+});
+register.registerMetric(totalUsers);
+
+// poll votes metric
+const pollVotes = new client.Gauge({
+    name: 'poll_votes',
+    help: 'Number of votes per poll',
+    labelNames: ['pollId', 'question']
+});
+register.registerMetric(pollVotes);
 
 //export the register to be used in server.js
 module.exports = {
     register,
-    httpTotalRequest
+    httpTotalRequest,
+    totalUsers,
+    pollVotes
 };

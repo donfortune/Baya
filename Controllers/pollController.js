@@ -1,4 +1,5 @@
 const poll = require('../Models/poll');
+const { pollVotes } = require('../Metrics/metrics');
 
 // exports.getAllPolls = async (req, res) => {
 //     try {
@@ -337,6 +338,20 @@ exports.votePoll = async (req, res) => {
         pollDetails.votes[optionIndex] += 1;
 
         await pollDetails.save();
+
+       // ✅ UPDATE THE METRIC (Fixed)
+        if (pollVotes) {
+            // 1. Calculate the TOTAL votes (Sum of the array [5, 2, 3] -> 10)
+            const currentTotalVotes = pollDetails.votes.reduce((a, b) => a + b, 0);
+
+            pollVotes.set(
+                // 2. Use 'pollDetails' (not 'poll')
+                { pollId: pollDetails._id.toString(), question: pollDetails.question }, 
+                currentTotalVotes
+            );
+            
+            console.log(`📊 Metric Updated: Poll "${pollDetails.question}" now has ${currentTotalVotes} votes.`);
+        }
 
         // ============================================================
         // 🚀 THE REAL-TIME INJECTION (The "Loudspeaker")

@@ -91,7 +91,7 @@ mongoose.connect(process.env.MONGODB_URI, {
 
 app.use(express.json());
 
-app.use(metricsMiddleware);
+app.use(metricsMiddleware.requestMetricsMiddleware);
 
 app.use('/api', pollRoutes);
 app.use('/api', roomRoutes);
