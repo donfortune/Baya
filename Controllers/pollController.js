@@ -1,5 +1,6 @@
 const poll = require('../Models/poll');
 const { pollVotes } = require('../Metrics/metrics');
+const logger = require('../logger');
 
 // exports.getAllPolls = async (req, res) => {
 //     try {
@@ -338,6 +339,17 @@ exports.votePoll = async (req, res) => {
         pollDetails.votes[optionIndex] += 1;
 
         await pollDetails.save();
+
+        const currentTotalVotes = pollDetails.votes.reduce((a, b) => a + b, 0); // Total votes
+
+        // loggin
+        logger.info({
+            message: 'Vote Cast',
+            pollId: pollDetails._id,
+            question: pollDetails.question,
+            votes: currentTotalVotes,
+            service: 'poll-service' // Nice to have for filtering later
+        });
 
        // ✅ UPDATE THE METRIC (Fixed)
         if (pollVotes) {
