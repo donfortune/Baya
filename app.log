@@ -1,1 +1,2 @@
 {"level":"info","message":"Vote Cast","pollId":"695f63e6bd15c456741953dd","question":"cast out devil","service":"poll-service","votes":1}
+{"level":"info","message":"Vote Cast","pollId":"696614d4266414e7017be07e","question":"Duro","service":"poll-service","span_id":"76012a7381ba12a8","trace_flags":"01","trace_id":"e54a4f4048e9a32f7990dfa812cfa847","votes":1}
