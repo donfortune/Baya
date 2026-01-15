@@ -3,11 +3,13 @@
 // import axios from 'axios';
 // import { toast } from 'react-toastify';
 // import { useSocket } from '../context/SocketContext';
-// import { FaPlus, FaSignOutAlt, FaRegCopy, FaGhost, FaTerminal, FaHistory, FaBroadcastTower } from 'react-icons/fa';
+// import { FaPlus, FaSignOutAlt, FaRegCopy, FaGhost, FaTerminal, FaHistory, FaBroadcastTower, FaChevronDown, FaChevronUp, FaTrashAlt } from 'react-icons/fa';
 
 // // Components
 // import CreatePollModal from '../components/CreatePollModal';
+// import PollDetailsModal from '../components/PollDetailsModal';
 // import PollCard from '../components/PollCard';
+// import ConfirmationModal from '../components/ConfirmationModal'; // 👈 IMPORTED
 
 // const getAuthHeaders = () => {
 //   const token = localStorage.getItem('token');
@@ -18,45 +20,95 @@
 //   const navigate = useNavigate();
 //   const socket = useSocket();
   
-//   // --- 1. LOAD USER SAFELY ---
+//   // --- STATE ---
 //   const [user, setUser] = useState(() => {
-//     try {
-//       const saved = localStorage.getItem('user');
-//       return saved ? JSON.parse(saved) : null;
-//     } catch (e) {
-//       return null;
-//     }
+//     try { return JSON.parse(localStorage.getItem('user')); } catch (e) { return null; }
 //   });
-
-//   // --- 2. STATE ---
-//   const [pollsList, setPollsList] = useState([]);
+//   const [pollsList, setPollsList] = useState([]); 
 //   const [roomCode, setRoomCode] = useState(null);
 //   const [confusionLevel, setConfusionLevel] = useState(0);
 //   const [whispers, setWhispers] = useState([]);
 //   const [loading, setLoading] = useState(true);
 //   const [isModalOpen, setIsModalOpen] = useState(false);
 //   const [reactions, setReactions] = useState([]);
+//   const [showAllArchived, setShowAllArchived] = useState(false);
+//   const [selectedPoll, setSelectedPoll] = useState(null);
+  
+//   // 👇 NEW STATES FOR PURGE MODAL
+//   const [isPurgeModalOpen, setIsPurgeModalOpen] = useState(false);
+//   const [isPurging, setIsPurging] = useState(false);
 
-//   // --- 3. HELPER: NUCLEAR DEDUPLICATION ---
+//   // --- HELPER: SAFE UPDATES ---
 //   const updatePollsSafe = useCallback((newOrUpdatedPoll) => {
 //     setPollsList(prevList => {
 //       const incomingId = String(newOrUpdatedPoll._id || newOrUpdatedPoll.id);
-      
 //       const exists = prevList.some(p => String(p._id || p.id) === incomingId);
       
 //       let newList;
 //       if (exists) {
 //         newList = prevList.map(p => String(p._id || p.id) === incomingId ? newOrUpdatedPoll : p);
+//         if (selectedPoll && String(selectedPoll._id) === incomingId) {
+//             setSelectedPoll(newOrUpdatedPoll);
+//         }
 //       } else {
 //         newList = [newOrUpdatedPoll, ...prevList];
 //       }
-      
-//       // Ensure strict sort order (Newest First)
 //       return newList.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 //     });
-//   }, []);
+//   }, [selectedPoll]);
 
-//   // --- 4. DISPLAY NAME ---
+//   // HANDLES STOP/DELETE
+//   const handleLocalPollChange = (data, isDelete = false) => {
+//     if (isDelete) {
+//         setPollsList(prev => prev.filter(p => (p._id || p.id) !== data));
+//         if (selectedPoll && (selectedPoll._id === data)) setSelectedPoll(null);
+//     } else {
+//         updatePollsSafe(data);
+//     }
+    
+//     if (roomCode && (isDelete || data.status === 'closed')) {
+//         const touchedId = isDelete ? data : (data._id || data.id);
+//         const currentActive = pollsList.find(p => p.status === 'active');
+//         if (currentActive && (currentActive._id || currentActive.id) === touchedId) {
+//              setRoomCode(null);
+//         }
+//     }
+//   };
+
+//   // 👇 STEP 1: OPEN THE MODAL
+//   const openPurgeModal = () => {
+//     const archivedCount = pollsList.filter(p => p.status !== 'active').length;
+//     if (archivedCount === 0) return;
+//     setIsPurgeModalOpen(true);
+//   };
+
+//   // 👇 STEP 2: ACTUALLY DELETE (Passed to Modal)
+//   const executePurge = async () => {
+//     const archived = pollsList.filter(p => p.status !== 'active');
+//     setIsPurging(true);
+//     let deletedCount = 0;
+
+//     try {
+//         await Promise.all(archived.map(async (poll) => {
+//             try {
+//                 await axios.delete(`http://localhost:3000/api/polls/${poll._id}`, getAuthHeaders());
+//                 deletedCount++;
+//             } catch (err) {
+//                 console.error("Failed to delete one poll:", err);
+//             }
+//         }));
+
+//         setPollsList(prev => prev.filter(p => p.status === 'active')); 
+//         toast.success(`Purged ${deletedCount} archived logs.`);
+//         setIsPurgeModalOpen(false); // Close modal on success
+        
+//     } catch (error) {
+//         toast.error("Error during purge operation.");
+//     } finally {
+//         setIsPurging(false);
+//     }
+//   };
+
 //   const getDisplayName = () => {
 //     if (!user) return "Host";
 //     const name = user.name || user.user?.name || "Host";
@@ -65,43 +117,28 @@
 //   };
 //   const displayName = getDisplayName();
 
-//   // --- 5. FETCH DATA (UPDATED FOR NEW ENDPOINT) ---
-//   const fetchInitialData = async () => {
-//     if (!user) return; // Safety check
-
+//   // --- FETCH HISTORY ---
+//   const fetchAllHistory = async () => {
+//     if (!user) return; 
 //     try {
-//       // 1. Get User ID robustly
 //       const userId = user._id || user.id || user.user?._id;
+//       if (!userId) { console.error("❌ Fatal: User ID missing."); return; }
 
-//       if (!userId) {
-//           console.error("User ID not found in local storage data");
-//           return;
-//       }
-
-//       // 2. Call your NEW Endpoint
-//       // URL: /api/polls/user/:userId
-//       const response = await axios.get(
-//         `http://localhost:3000/api/polls/user/${userId}`, 
-//         getAuthHeaders()
-//       );
-
-//       const fetchedPolls = response.data || [];
-
-//       // 3. Sort by Newest First (Backend usually sends newest, but we double-check)
-//       const sortedPolls = fetchedPolls.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-
+//       const response = await axios.get(`http://localhost:3000/api/polls/user/${userId}`, getAuthHeaders());
+//       let rawData = response.data;
+//       let pollsArray = Array.isArray(rawData) ? rawData : (rawData.polls || rawData.data || []);
+      
+//       const sortedPolls = pollsArray.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 //       setPollsList(sortedPolls);
 
 //       if (sortedPolls.length > 0) {
-//         // Prefer an Active poll for the room code, otherwise use the newest
 //         const activePoll = sortedPolls.find(p => p.status === 'active');
-//         setRoomCode(activePoll ? activePoll.roomCode : sortedPolls[0].roomCode);
+//         setRoomCode(activePoll ? activePoll.roomCode : null);
 //       } else {
-//         setRoomCode('NEW');
+//         setRoomCode(null);
 //       }
 //     } catch (error) {
-//       console.error("Error fetching polls:", error);
-//       // Optional: Toast error if you want visible feedback
+//       if (error.response && error.response.status !== 404) toast.error("Could not sync history.");
 //     } finally {
 //       setLoading(false);
 //     }
@@ -114,20 +151,15 @@
 //   };
 
 //   useEffect(() => {
-//     if (!localStorage.getItem('token')) {
-//         navigate('/login');
-//     } else {
-//         fetchInitialData();
-//     }
+//     if (!localStorage.getItem('token')) navigate('/login');
+//     else fetchAllHistory();
 //   }, [navigate]);
   
-//   // --- 6. SOCKET LOGIC ---
+//   // --- SOCKET ---
 //   useEffect(() => {
 //     if (socket && roomCode && roomCode !== 'NEW') {
-//       console.log("🔌 Joining Room:", roomCode);
 //       socket.emit('join_room', roomCode);
 
-//       // Listeners
 //       const handlePollUpdate = (updatedPoll) => updatePollsSafe(updatedPoll);
 //       const handlePanic = () => setConfusionLevel(p => Math.min(p + 10, 100));
 //       const handleWhisper = (d) => setWhispers(p => [d.message, ...p].slice(0, 5));
@@ -153,11 +185,11 @@
 //     }
 //   }, [socket, roomCode, updatePollsSafe]);
 
-//   if (loading) return <div className="flex h-screen items-center justify-center bg-[#030303] text-[#ccff00] font-mono animate-pulse">LOADING SYSTEM...</div>;
+//   if (loading) return <div className="flex h-screen items-center justify-center bg-[#030303] text-[#ccff00] font-mono animate-pulse">RESTORING HISTORY...</div>;
 
-//   // Filter lists for the view
 //   const activePolls = pollsList.filter(p => p.status === 'active');
 //   const archivedPolls = pollsList.filter(p => p.status !== 'active');
+//   const visibleArchivedPolls = showAllArchived ? archivedPolls : archivedPolls.slice(0, 3);
 
 //   return (
 //     <div className="w-full min-h-screen bg-[#030303] text-[#e0e0e0] p-6 pb-20 font-sans relative">
@@ -173,21 +205,20 @@
 //              <div className="flex flex-col items-end">
 //                 <span className="text-[10px] text-gray-500 uppercase font-bold tracking-widest mb-1">Session Code</span>
 //                 <button 
-//                     onClick={() => { if(roomCode && roomCode !== 'NEW') { navigator.clipboard.writeText(roomCode); toast.success("COPIED"); }}}
-//                     className="group bg-[#111] border border-[#333] hover:border-[#ccff00] px-6 py-2 flex items-center gap-3 transition-all cursor-pointer"
+//                     onClick={() => { if(roomCode) { navigator.clipboard.writeText(roomCode); toast.success("COPIED"); } }}
+//                     className={`group border px-6 py-2 flex items-center gap-3 transition-all ${roomCode ? 'bg-[#111] border-[#333] hover:border-[#ccff00] cursor-pointer' : 'bg-transparent border-[#222] cursor-not-allowed opacity-50'}`}
 //                 >
-//                     <span className="text-2xl font-mono font-bold text-white group-hover:text-[#ccff00]">{roomCode || '...'}</span>
-//                     <FaRegCopy className="text-gray-500 group-hover:text-[#ccff00]" />
+//                     <span className={`text-2xl font-mono font-bold ${roomCode ? 'text-white group-hover:text-[#ccff00]' : 'text-gray-600'}`}>{roomCode || 'OFFLINE'}</span>
+//                     {roomCode && <FaRegCopy className="text-gray-500 group-hover:text-[#ccff00]" />}
 //                 </button>
 //              </div>
-
 //             <button onClick={handleLogout} className="h-14 px-6 border border-[#333] hover:bg-red-900/20 hover:border-red-500 hover:text-red-500 text-gray-400 font-bold transition flex items-center gap-2"><FaSignOutAlt/></button>
 //             <button onClick={() => setIsModalOpen(true)} className="h-14 bg-[#ccff00] hover:bg-white text-black px-8 font-black uppercase tracking-wider flex items-center gap-2 transition-colors shadow-[4px_4px_0px_#333] hover:translate-y-1 hover:shadow-none"><FaPlus /> New Poll</button>
 //         </div>
 //       </div>
 
 //       <div className="max-w-6xl mx-auto">
-//         {/* METRICS */}
+//         {/* METRICS & WHISPERS */}
 //         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
 //             <div className="md:col-span-2 brutalist-card p-0 flex flex-col h-64 relative overflow-hidden group border border-[#333] bg-[#0a0a0a]">
 //                 <div className="bg-[#111] border-b border-[#333] p-3 flex justify-between items-center">
@@ -213,7 +244,7 @@
 //             </div>
 //         </div>
 
-//         {/* --- SECTION 1: ACTIVE POLLS --- */}
+//         {/* --- ACTIVE BROADCASTS --- */}
 //         <div className="mb-6 flex items-center gap-4">
 //              <div className="h-px bg-[#ccff00] flex-1"></div>
 //              <h3 className="font-mono text-[#ccff00] uppercase tracking-widest text-sm flex items-center gap-2"><FaBroadcastTower/> Active Broadcasts</h3>
@@ -227,47 +258,94 @@
 //             </div>
 //         ) : (
 //             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-//                 {activePolls.map(p => <PollCard key={p._id || p.pollId} poll={p} />)}
+//                 {activePolls.map(p => (
+//                     <PollCard 
+//                         key={p._id || p.pollId} 
+//                         poll={p} 
+//                         onUpdate={handleLocalPollChange} 
+//                         onClick={() => setSelectedPoll(p)}
+//                     />
+//                 ))}
 //             </div>
 //         )}
 
-//         {/* --- SECTION 2: ARCHIVED POLLS --- */}
+//         {/* --- ARCHIVED LOGS --- */}
 //         {archivedPolls.length > 0 && (
 //           <>
-//             <div className="mb-6 flex items-center gap-4 mt-12">
-//                 <div className="h-px bg-[#333] flex-1"></div>
-//                 <h3 className="font-mono text-gray-500 uppercase tracking-widest text-sm flex items-center gap-2"><FaHistory /> Archived Logs</h3>
+//             <div className="mb-6 flex items-center justify-between mt-12">
+//                 <div className="flex items-center gap-4 flex-1">
+//                     <div className="h-px bg-[#333] flex-1"></div>
+//                     <h3 className="font-mono text-gray-500 uppercase tracking-widest text-sm flex items-center gap-2"><FaHistory /> Archived Logs</h3>
+//                 </div>
+                
+//                 {/* 👇 PURGE BUTTON TRIGGERS MODAL */}
+//                 <button 
+//                     onClick={openPurgeModal}
+//                     className="ml-4 flex items-center gap-2 text-xs font-mono text-red-900 hover:text-red-500 uppercase tracking-widest border border-red-900/30 hover:border-red-500 px-3 py-1 rounded transition-all"
+//                 >
+//                     <FaTrashAlt /> Purge All
+//                 </button>
+                
 //                 <div className="h-px bg-[#333] flex-1"></div>
 //             </div>
 
-//             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 opacity-60 hover:opacity-100 transition-opacity duration-300">
-//                 {archivedPolls.map(p => <PollCard key={p._id || p.pollId} poll={p} />)}
+//             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 opacity-60 hover:opacity-100 transition-opacity duration-300 mb-8">
+//                 {visibleArchivedPolls.map(p => (
+//                     <PollCard 
+//                         key={p._id || p.pollId} 
+//                         poll={p} 
+//                         onUpdate={handleLocalPollChange} 
+//                         onClick={() => setSelectedPoll(p)}
+//                     />
+//                 ))}
 //             </div>
+
+//             {archivedPolls.length > 3 && (
+//                 <div className="flex justify-center pb-8">
+//                     <button 
+//                         onClick={() => setShowAllArchived(!showAllArchived)}
+//                         className="flex items-center gap-2 text-[#ccff00] font-mono text-sm uppercase tracking-widest hover:text-white transition-colors py-2 px-4 border border-[#333] hover:border-[#ccff00] rounded-full"
+//                     >
+//                         {showAllArchived ? <>Show Less <FaChevronUp /></> : <>See All Archives ({archivedPolls.length}) <FaChevronDown /></>}
+//                     </button>
+//                 </div>
+//             )}
 //           </>
 //         )}
 //       </div>
 
-//       {/* FLOATING EMOJIS */}
 //       <div className="fixed bottom-0 right-10 w-32 h-screen pointer-events-none z-50 overflow-hidden">
-//         {reactions.map((r) => (
-//             <div key={r.id} className="absolute bottom-0 text-5xl animate-float-up opacity-0" style={{ left: `${Math.random() * 60 + 20}%`, animationDuration: `${1.5 + Math.random()}s` }}>{r.emoji}</div>
-//         ))}
+//         {reactions.map((r) => <div key={r.id} className="absolute bottom-0 text-5xl animate-float-up opacity-0" style={{ left: `${Math.random() * 60 + 20}%`, animationDuration: `${1.5 + Math.random()}s` }}>{r.emoji}</div>)}
 //       </div>
 
 //       <CreatePollModal 
 //         isOpen={isModalOpen} 
 //         onClose={() => setIsModalOpen(false)} 
 //         onCreated={(newPoll) => {
-//             // 1. SAFE ADD: Use the unique updater to show it instantly
 //             updatePollsSafe(newPoll);
-
-//             // 2. JOIN ROOM
 //             if (!roomCode || roomCode === 'NEW') {
 //                 setRoomCode(newPoll.roomCode);
 //                 if(socket) socket.emit('join_room', newPoll.roomCode);
 //             }
 //         }}
 //         roomCode={roomCode}
+//       />
+
+//       <PollDetailsModal 
+//         isOpen={!!selectedPoll} 
+//         poll={selectedPoll} 
+//         onClose={() => setSelectedPoll(null)}
+//         liveWhispers={whispers}
+//       />
+
+//       {/* 👇 NEW CONFIRMATION MODAL */}
+//       <ConfirmationModal
+//         isOpen={isPurgeModalOpen}
+//         onClose={() => setIsPurgeModalOpen(false)}
+//         onConfirm={executePurge}
+//         isLoading={isPurging}
+//         title="Purge Archives"
+//         message={`This action will permanently delete all ${pollsList.filter(p => p.status !== 'active').length} archived polls. This data cannot be recovered.`}
 //       />
 //     </div>
 //   );
@@ -280,11 +358,13 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { toast } from 'react-toastify';
 import { useSocket } from '../context/SocketContext';
-import { FaPlus, FaSignOutAlt, FaRegCopy, FaGhost, FaTerminal, FaHistory, FaBroadcastTower } from 'react-icons/fa';
+import { FaPlus, FaSignOutAlt, FaRegCopy, FaGhost, FaTerminal, FaHistory, FaBroadcastTower, FaChevronDown, FaChevronUp, FaTrashAlt } from 'react-icons/fa';
 
 // Components
 import CreatePollModal from '../components/CreatePollModal';
+import PollDetailsModal from '../components/PollDetailsModal';
 import PollCard from '../components/PollCard';
+import ConfirmationModal from '../components/ConfirmationModal';
 
 const getAuthHeaders = () => {
   const token = localStorage.getItem('token');
@@ -295,26 +375,29 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const socket = useSocket();
   
-  // --- 1. PERSISTENCE LAYER: RESTORE USER ON REFRESH ---
+  // --- STATE ---
   const [user, setUser] = useState(() => {
-    try {
-      const savedUser = localStorage.getItem('user');
-      return savedUser ? JSON.parse(savedUser) : null;
-    } catch (e) {
-      return null;
-    }
+    try { return JSON.parse(localStorage.getItem('user')); } catch (e) { return null; }
   });
-
-  // --- 2. STATE ---
+  
   const [pollsList, setPollsList] = useState([]); 
   const [roomCode, setRoomCode] = useState(null);
   const [confusionLevel, setConfusionLevel] = useState(0);
   const [whispers, setWhispers] = useState([]);
   const [loading, setLoading] = useState(true);
+  
+  // UI Toggles
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [reactions, setReactions] = useState([]);
+  const [showAllArchived, setShowAllArchived] = useState(false);
+  const [selectedPoll, setSelectedPoll] = useState(null);
+  const [copied, setCopied] = useState(false); // 👈 FOR SMART BUTTON
 
-  // --- 3. HELPER: SAFE UPDATES (Prevents Duplicates) ---
+  // Purge Modal State
+  const [isPurgeModalOpen, setIsPurgeModalOpen] = useState(false);
+  const [isPurging, setIsPurging] = useState(false);
+
+  // --- HELPER: SAFE UPDATES ---
   const updatePollsSafe = useCallback((newOrUpdatedPoll) => {
     setPollsList(prevList => {
       const incomingId = String(newOrUpdatedPoll._id || newOrUpdatedPoll.id);
@@ -323,14 +406,65 @@ const Dashboard = () => {
       let newList;
       if (exists) {
         newList = prevList.map(p => String(p._id || p.id) === incomingId ? newOrUpdatedPoll : p);
+        if (selectedPoll && String(selectedPoll._id) === incomingId) {
+            setSelectedPoll(newOrUpdatedPoll);
+        }
       } else {
         newList = [newOrUpdatedPoll, ...prevList];
       }
-      
-      // Always keep sorted: Newest at top
       return newList.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     });
-  }, []);
+  }, [selectedPoll]);
+
+  // HANDLES STOP/DELETE FROM CHILD CARDS
+  const handleLocalPollChange = (data, isDelete = false) => {
+    if (isDelete) {
+        setPollsList(prev => prev.filter(p => (p._id || p.id) !== data));
+        if (selectedPoll && (selectedPoll._id === data)) setSelectedPoll(null);
+    } else {
+        updatePollsSafe(data);
+    }
+    
+    // If the active poll was closed/deleted, clear the code immediately
+    if (roomCode && (isDelete || data.status === 'closed')) {
+        const touchedId = isDelete ? data : (data._id || data.id);
+        const currentActive = pollsList.find(p => p.status === 'active');
+        if (currentActive && (currentActive._id || currentActive.id) === touchedId) {
+             setRoomCode(null);
+        }
+    }
+  };
+
+  // --- PURGE LOGIC ---
+  const openPurgeModal = () => {
+    const archivedCount = pollsList.filter(p => p.status !== 'active').length;
+    if (archivedCount === 0) return;
+    setIsPurgeModalOpen(true);
+  };
+
+  const executePurge = async () => {
+    const archived = pollsList.filter(p => p.status !== 'active');
+    setIsPurging(true);
+    
+    try {
+        await Promise.all(archived.map(async (poll) => {
+            try {
+                await axios.delete(`http://localhost:3000/api/polls/${poll._id}`, getAuthHeaders());
+            } catch (err) {
+                console.error("Failed to delete one poll:", err);
+            }
+        }));
+
+        setPollsList(prev => prev.filter(p => p.status === 'active')); 
+        // No Toast here - Visual update is enough
+        setIsPurgeModalOpen(false); 
+        
+    } catch (error) {
+        toast.error("System Error: Purge failed.");
+    } finally {
+        setIsPurging(false);
+    }
+  };
 
   const getDisplayName = () => {
     if (!user) return "Host";
@@ -340,60 +474,28 @@ const Dashboard = () => {
   };
   const displayName = getDisplayName();
 
-  // --- 4. THE RESTORE FUNCTION (CRASH PROOF VERSION) ---
+  // --- FETCH HISTORY ---
   const fetchAllHistory = async () => {
     if (!user) return; 
-
     try {
       const userId = user._id || user.id || user.user?._id;
+      if (!userId) { console.error("❌ Fatal: User ID missing."); return; }
 
-      if (!userId) {
-          console.error("❌ Fatal: User ID missing from storage.");
-          return;
-      }
-
-      console.log(`🔄 Fetching history for User: ${userId}`);
-
-      const response = await axios.get(
-        `http://localhost:3000/api/polls/user/${userId}`, 
-        getAuthHeaders()
-      );
-
-      // 🔍 SAFELY EXTRACT THE ARRAY (Fixes "sort is not a function")
+      const response = await axios.get(`http://localhost:3000/api/polls/user/${userId}`, getAuthHeaders());
       let rawData = response.data;
-      let pollsArray = [];
-
-      // Check all possible ways the backend might return data
-      if (Array.isArray(rawData)) {
-          pollsArray = rawData;
-      } else if (rawData && Array.isArray(rawData.polls)) {
-          pollsArray = rawData.polls;
-      } else if (rawData && Array.isArray(rawData.data)) {
-          pollsArray = rawData.data;
-      } else {
-          console.warn("⚠️ Server response is not a list:", rawData);
-          pollsArray = []; 
-      }
+      let pollsArray = Array.isArray(rawData) ? rawData : (rawData.polls || rawData.data || []);
       
-      // Now it is safe to sort because we GUARANTEE it's an array
       const sortedPolls = pollsArray.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-      
-      console.log(`✅ Loaded ${sortedPolls.length} past polls.`);
       setPollsList(sortedPolls);
 
-      // Restore Room Code (Prefer active, else newest)
       if (sortedPolls.length > 0) {
         const activePoll = sortedPolls.find(p => p.status === 'active');
-        setRoomCode(activePoll ? activePoll.roomCode : sortedPolls[0].roomCode);
+        setRoomCode(activePoll ? activePoll.roomCode : null);
       } else {
-        setRoomCode('NEW');
+        setRoomCode(null);
       }
     } catch (error) {
-      console.error("Error loading history:", error);
-      // Don't toast on 404 (just means no history yet)
-      if (error.response && error.response.status !== 404) {
-         toast.error("Could not sync history.");
-      }
+      if (error.response && error.response.status !== 404) toast.error("Connection Error: Could not sync.");
     } finally {
       setLoading(false);
     }
@@ -405,16 +507,12 @@ const Dashboard = () => {
     navigate('/login');
   };
 
-  // --- 5. INITIALIZATION EFFECT ---
   useEffect(() => {
-    if (!localStorage.getItem('token')) {
-        navigate('/login');
-    } else {
-        fetchAllHistory();
-    }
+    if (!localStorage.getItem('token')) navigate('/login');
+    else fetchAllHistory();
   }, [navigate]);
   
-  // --- 6. SOCKET LOGIC ---
+  // --- SOCKET ---
   useEffect(() => {
     if (socket && roomCode && roomCode !== 'NEW') {
       socket.emit('join_room', roomCode);
@@ -446,9 +544,9 @@ const Dashboard = () => {
 
   if (loading) return <div className="flex h-screen items-center justify-center bg-[#030303] text-[#ccff00] font-mono animate-pulse">RESTORING HISTORY...</div>;
 
-  // Filter lists for the view
   const activePolls = pollsList.filter(p => p.status === 'active');
   const archivedPolls = pollsList.filter(p => p.status !== 'active');
+  const visibleArchivedPolls = showAllArchived ? archivedPolls : archivedPolls.slice(0, 3);
 
   return (
     <div className="w-full min-h-screen bg-[#030303] text-[#e0e0e0] p-6 pb-20 font-sans relative">
@@ -464,14 +562,21 @@ const Dashboard = () => {
              <div className="flex flex-col items-end">
                 <span className="text-[10px] text-gray-500 uppercase font-bold tracking-widest mb-1">Session Code</span>
                 <button 
-                    onClick={() => { if(roomCode && roomCode !== 'NEW') { navigator.clipboard.writeText(roomCode); toast.success("COPIED"); }}}
-                    className="group bg-[#111] border border-[#333] hover:border-[#ccff00] px-6 py-2 flex items-center gap-3 transition-all cursor-pointer"
+                    onClick={() => { 
+                        if(roomCode) { 
+                            navigator.clipboard.writeText(roomCode); 
+                            setCopied(true);
+                            setTimeout(() => setCopied(false), 2000);
+                        } 
+                    }}
+                    className={`group border px-6 py-2 flex items-center gap-3 transition-all ${roomCode ? 'bg-[#111] border-[#333] hover:border-[#ccff00] cursor-pointer' : 'bg-transparent border-[#222] cursor-not-allowed opacity-50'}`}
                 >
-                    <span className="text-2xl font-mono font-bold text-white group-hover:text-[#ccff00]">{roomCode || '...'}</span>
-                    <FaRegCopy className="text-gray-500 group-hover:text-[#ccff00]" />
+                    <span className={`text-2xl font-mono font-bold ${roomCode ? 'text-white group-hover:text-[#ccff00]' : 'text-gray-600'}`}>
+                        {copied ? 'COPIED!' : (roomCode || 'OFFLINE')}
+                    </span>
+                    {!copied && roomCode && <FaRegCopy className="text-gray-500 group-hover:text-[#ccff00]" />}
                 </button>
              </div>
-
             <button onClick={handleLogout} className="h-14 px-6 border border-[#333] hover:bg-red-900/20 hover:border-red-500 hover:text-red-500 text-gray-400 font-bold transition flex items-center gap-2"><FaSignOutAlt/></button>
             <button onClick={() => setIsModalOpen(true)} className="h-14 bg-[#ccff00] hover:bg-white text-black px-8 font-black uppercase tracking-wider flex items-center gap-2 transition-colors shadow-[4px_4px_0px_#333] hover:translate-y-1 hover:shadow-none"><FaPlus /> New Poll</button>
         </div>
@@ -504,7 +609,7 @@ const Dashboard = () => {
             </div>
         </div>
 
-        {/* --- SECTION 1: ACTIVE BROADCASTS --- */}
+        {/* --- ACTIVE BROADCASTS --- */}
         <div className="mb-6 flex items-center gap-4">
              <div className="h-px bg-[#ccff00] flex-1"></div>
              <h3 className="font-mono text-[#ccff00] uppercase tracking-widest text-sm flex items-center gap-2"><FaBroadcastTower/> Active Broadcasts</h3>
@@ -518,38 +623,69 @@ const Dashboard = () => {
             </div>
         ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-                {activePolls.map(p => <PollCard key={p._id || p.pollId} poll={p} />)}
+                {activePolls.map(p => (
+                    <PollCard 
+                        key={p._id || p.pollId} 
+                        poll={p} 
+                        onUpdate={handleLocalPollChange} 
+                        onClick={() => setSelectedPoll(p)}
+                    />
+                ))}
             </div>
         )}
 
-        {/* --- SECTION 2: ARCHIVED LOGS --- */}
+        {/* --- ARCHIVED LOGS --- */}
         {archivedPolls.length > 0 && (
           <>
-            <div className="mb-6 flex items-center gap-4 mt-12">
-                <div className="h-px bg-[#333] flex-1"></div>
-                <h3 className="font-mono text-gray-500 uppercase tracking-widest text-sm flex items-center gap-2"><FaHistory /> Archived Logs</h3>
+            <div className="mb-6 flex items-center justify-between mt-12">
+                <div className="flex items-center gap-4 flex-1">
+                    <div className="h-px bg-[#333] flex-1"></div>
+                    <h3 className="font-mono text-gray-500 uppercase tracking-widest text-sm flex items-center gap-2"><FaHistory /> Archived Logs</h3>
+                </div>
+                
+                <button 
+                    onClick={openPurgeModal}
+                    className="ml-4 flex items-center gap-2 text-xs font-mono text-red-900 hover:text-red-500 uppercase tracking-widest border border-red-900/30 hover:border-red-500 px-3 py-1 rounded transition-all"
+                >
+                    <FaTrashAlt /> Purge All
+                </button>
+                
                 <div className="h-px bg-[#333] flex-1"></div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 opacity-60 hover:opacity-100 transition-opacity duration-300">
-                {archivedPolls.map(p => <PollCard key={p._id || p.pollId} poll={p} />)}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 opacity-60 hover:opacity-100 transition-opacity duration-300 mb-8">
+                {visibleArchivedPolls.map(p => (
+                    <PollCard 
+                        key={p._id || p.pollId} 
+                        poll={p} 
+                        onUpdate={handleLocalPollChange} 
+                        onClick={() => setSelectedPoll(p)}
+                    />
+                ))}
             </div>
+
+            {archivedPolls.length > 3 && (
+                <div className="flex justify-center pb-8">
+                    <button 
+                        onClick={() => setShowAllArchived(!showAllArchived)}
+                        className="flex items-center gap-2 text-[#ccff00] font-mono text-sm uppercase tracking-widest hover:text-white transition-colors py-2 px-4 border border-[#333] hover:border-[#ccff00] rounded-full"
+                    >
+                        {showAllArchived ? <>Show Less <FaChevronUp /></> : <>See All Archives ({archivedPolls.length}) <FaChevronDown /></>}
+                    </button>
+                </div>
+            )}
           </>
         )}
       </div>
 
-      {/* FLOATING EMOJIS */}
       <div className="fixed bottom-0 right-10 w-32 h-screen pointer-events-none z-50 overflow-hidden">
-        {reactions.map((r) => (
-            <div key={r.id} className="absolute bottom-0 text-5xl animate-float-up opacity-0" style={{ left: `${Math.random() * 60 + 20}%`, animationDuration: `${1.5 + Math.random()}s` }}>{r.emoji}</div>
-        ))}
+        {reactions.map((r) => <div key={r.id} className="absolute bottom-0 text-5xl animate-float-up opacity-0" style={{ left: `${Math.random() * 60 + 20}%`, animationDuration: `${1.5 + Math.random()}s` }}>{r.emoji}</div>)}
       </div>
 
       <CreatePollModal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
         onCreated={(newPoll) => {
-            // Immediate update for Host
             updatePollsSafe(newPoll);
             if (!roomCode || roomCode === 'NEW') {
                 setRoomCode(newPoll.roomCode);
@@ -557,6 +693,23 @@ const Dashboard = () => {
             }
         }}
         roomCode={roomCode}
+      />
+
+      <PollDetailsModal 
+        isOpen={!!selectedPoll} 
+        poll={selectedPoll} 
+        onClose={() => setSelectedPoll(null)}
+        liveWhispers={whispers}
+      />
+
+      {/* CONFIRMATION MODAL FOR PURGE */}
+      <ConfirmationModal
+        isOpen={isPurgeModalOpen}
+        onClose={() => setIsPurgeModalOpen(false)}
+        onConfirm={executePurge}
+        isLoading={isPurging}
+        title="Purge Archives"
+        message={`This action will permanently delete all ${pollsList.filter(p => p.status !== 'active').length} archived polls. This data cannot be recovered.`}
       />
     </div>
   );
