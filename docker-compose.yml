@@ -1,0 +1,18 @@
+version: "3.9"
+
+services:
+  backend:
+    image: donfortune1/baya-backendend:1.0
+    container_name: baya-backend
+    ports:
+      - "3000:3000"
+    env_file:
+      - ./.env
+
+  frontend:
+    image: donfortune1/baya-frontend:1.0
+    container_name: baya-frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
