@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "nodemon --require ./tracing.js index.js"
+    "dev": "nodemon --require ./tracing.js index.js",
+    "start": "node --require ./tracing.js index.js"
   },
   "keywords": [],
   "author": "",
