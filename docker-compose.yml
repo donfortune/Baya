@@ -32,6 +32,17 @@ services:
     ports:
       - "9090:9090"
 
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3005:3000"
+    depends_on:
+      - prometheus
+    volumes:
+      - grafana_data:/var/lib/grafana
+
 volumes:
   prometheus_data:
+  grafana_data:
 
