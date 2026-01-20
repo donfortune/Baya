@@ -42,7 +42,31 @@ services:
     volumes:
       - grafana_data:/var/lib/grafana
 
+  loki:
+    image: grafana/loki:2.8.2
+    container_name: loki
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - ./loki/local-config.yaml:/etc/loki/local-config.yaml
+
+  promtail:
+    image: grafana/promtail:2.8.2
+    container_name: promtail
+    volumes:
+      # Mount the configuration file
+      - ./loki/promtail-local-config.yaml:/etc/promtail/config.yaml
+      # Mount the Docker log directory so Promtail can read the files
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      # Mount the Docker socket to discover container names
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: -config.file=/etc/promtail/config.yaml
+    depends_on:
+      - loki
+
 volumes:
   prometheus_data:
   grafana_data:
+  loki_data:
 
