@@ -5,12 +5,12 @@ const { OTLPTraceExporter } = require('@opentelemetry/exporter-trace-otlp-proto'
 
 // 1. Point to Jaeger (Docker port 4318)
 const traceExporter = new OTLPTraceExporter({
-  url: 'http://localhost:4318/v1/traces',
+  url: process.env.JAEGER_ENDPOINT
 });
 
 // 2. Configure the Spy
 const sdk = new NodeSDK({
-  serviceName: 'baya-api', // This name will show up in Jaeger
+  serviceName: 'baya-api',
   traceExporter,
   instrumentations: [getNodeAutoInstrumentations()],
 });
@@ -27,3 +27,4 @@ process.on('SIGTERM', () => {
     .catch((error) => console.log('Error terminating tracing', error))
     .finally(() => process.exit(0));
 });
+

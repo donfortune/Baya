@@ -2,12 +2,17 @@ version: "3.9"
 
 services:
   backend:
+    build: .
     image: donfortune1/baya-backendend:1.0
     container_name: baya-backend
     ports:
       - "3000:3000"
     env_file:
       - ./.env
+    environment:
+      - JAEGER_ENDPOINT=http://jaeger:4318/v1/traces
+    depends_on:
+      - jaeger 
 
   frontend:
     image: donfortune1/baya-frontend:1.0
@@ -65,8 +70,22 @@ services:
     depends_on:
       - loki
 
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: jaeger
+    ports:
+      - "16686:16686"  # Jaeger UI
+      - "4317:4317"    # <--- NEW: OTLP gRPC
+      - "4318:4318"    # <--- NEW: OTLP HTTP (Node.js uses this one!)
+      - "14250:14250"  # Model/Proto
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true # Just to be safe for older images
+    volumes:
+      - jaeger_data:/jaeger_data
+
 volumes:
   prometheus_data:
   grafana_data:
   loki_data:
+  jaeger_data:
 
