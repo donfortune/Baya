@@ -1,0 +1,3 @@
+# Debian 12 'will_not_fix' upstream issue in zlib
+# See: https://security-tracker.debian.org/tracker/CVE-2023-45853
+CVE-2023-45853
