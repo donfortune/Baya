@@ -1,6 +1,7 @@
 const express = require('express');
 const env = require('dotenv')
 const mongoose = require('mongoose');
+const mongoSanitize = require('express-mongo-sanitize');
 const pollRoutes = require('./Routes/pollRoutes');
 const roomRoutes = require('./Routes/roomRoutes')
 const userRoutes = require('./Routes/userRoutes');
@@ -77,6 +78,7 @@ env.config();
 
 
 app.use(cors());
+app.use(mongoSanitize());
 const port = process.env.PORT 
 
 mongoose.connect(process.env.MONGODB_URI, {
