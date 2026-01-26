@@ -83,11 +83,13 @@ Logs are not trapped inside containers. **Promtail** tails the Docker container 
 **Solution:** Architected a unified bridge network in `docker-compose` and implemented dynamic environment variable injection (`JAEGER_ENDPOINT`) to allow the Node.js process to discover the tracing service via Docker DNS.
 
 ---
+## 🚀 Future Improvements & Roadmap
 
-## 🔮 Future Improvements
-* **CI/CD:** Implement GitHub Actions for automated testing and image building.
-* **Kubernetes:** Migrate from Docker Compose to K8s for multi-node scaling.
-* **Alerting:** Configure Grafana Alertmanager to notify on high error rates.
+While the current pipeline implements robust DevSecOps practices (SAST, SCA, and Container Scanning), there are plans to further scale the security architecture:
+
+* **Centralized Vulnerability Management:** Integrate **DefectDojo** to aggregate findings from Trivy, CodeQL, and TruffleHog into a single dashboard for tracking MTTR (Mean Time to Remediation).
+* **Dynamic Application Security Testing (DAST):** Implement **OWASP ZAP** to run active penetration tests against the staging environment before deployment.
+* **Kubernetes Deployment:** Migrate from Docker Compose to **Helm Charts** and **ArgoCD** for GitOps-based delivery to a K8s cluster.
 
 ---
 
