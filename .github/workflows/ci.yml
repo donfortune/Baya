@@ -21,12 +21,17 @@ jobs:
           fetch-depth: 0 # Required for secret scanning to check history
 
       
-      # 1. SECRET SCANNING (TruffleHog)
-      - name: TruffleHog OSS
-        uses: trufflesecurity/trufflehog@main
+      # # 1. SECRET SCANNING (TruffleHog)
+      # - name: TruffleHog OSS
+      #   uses: trufflesecurity/trufflehog@main
+      #   with:
+      #     path: ./
+      #     extra_args: --debug --only-verified
+      # secret scanning with gitleaks
+      - name: Gitleaks Scan
+        uses: zricethezav/gitleaks-action@v1.3.0
         with:
-          path: ./
-          extra_args: --debug --only-verified
+          args: "--redact"
 
       # 2. SAST (CodeQL)
       - name: Initialize CodeQL
