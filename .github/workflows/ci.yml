@@ -11,14 +11,23 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       security-events: write
-      contents: read
+      contents: write
       packages: write
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0 
+      
+      - name: Calculate Semantic version
+        id: tag_version 
+        uses: anothrNick/github-tag-action@v1.37.3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          tag_prefix: ''
+          default_bump: 'patch'
+          release_branches: 'main'
 
       
       # 1. SECRET SCANNING (Gitleaks)
@@ -94,6 +103,7 @@ jobs:
           file: ./dockerfile
           load: true 
           tags: donfortune1/baya-backend:test
+                
 
       # Step A: REPORT EVERYTHING (High & Critical)
       - name: Run Trivy Image (Report)
@@ -139,7 +149,9 @@ jobs:
           context: .
           file: ./dockerfile
           push: true
-          tags: donfortune1/baya-backend:latest
+          tags: |
+            donfortune1/baya-backend:latest
+            donfortune1/baya-backend:${{ steps.tag_version.outputs.new_tag }}
       
       - name: Build and push Frontend
         uses: docker/build-push-action@v5
@@ -147,4 +159,14 @@ jobs:
           context: ./client
           file: ./client/dockerfile
           push: true
-          tags: donfortune1/baya-frontend:latest
+          tags: |
+            donfortune1/baya-frontend:latest
+            donfortune1/baya-frontend:${{ steps.tag_version.outputs.new_tag }}
+
+      - name: Create GitHub Release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ steps.tag_version.outputs.new_tag }}
+          name: Release ${{ steps.tag_version.outputs.new_tag }}
+          body: "Automated release of version ${{ steps.tag_version.outputs.new_tag }}"
+          token: ${{ secrets.GITHUB_TOKEN }}
