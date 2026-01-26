@@ -1,19 +1,12 @@
 # Baya: Real-Time Polling Platform with Full-Stack Observability
 
 ![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?style=for-the-badge&logo=docker&logoColor=white)
-
 ![NodeJS](https://img.shields.io/badge/node.js-6DA55F?style=for-the-badge&logo=node.js&logoColor=white)
-
 ![React](https://img.shields.io/badge/react-%2320232a.svg?style=for-the-badge&logo=react&logoColor=%2361DAFB)
-
 ![MongoDB](https://img.shields.io/badge/MongoDB-%234ea94b.svg?style=for-the-badge&logo=mongodb&logoColor=white)
-
 ![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-%234ea94b.svg?style=for-the-badge&logo=opentelemetry&logoColor=white)
-
 ![CI/CD](https://github.com/donfortune1/baya-backend/actions/workflows/ci.yml/badge.svg)
-
 ![Security](https://img.shields.io/badge/Security-Trivy%26CodeQL-blue?style=for-the-badge&logo=githubactions&logoColor=white)
-
 ![Release](https://img.shields.io/github/v/release/donfortune1/baya-backend?style=for-the-badge&label=Latest%20Release)
 
 Baya is a production-ready, containerized polling application engineered to demonstrate **Microservices Orchestration**, **Real-Time Communication**, and **Deep Observability**.
