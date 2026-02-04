@@ -3,7 +3,7 @@ version: "3.9"
 services:
   backend:
     build: .
-    image: donfortune1/baya-backendend:1.0
+    image: donfortune1/baya-backend:latest
     container_name: baya-backend
     ports:
       - "3000:3000"
@@ -15,7 +15,8 @@ services:
       - jaeger 
 
   frontend:
-    image: donfortune1/baya-frontend:1.0
+    build: ./client
+    image: donfortune1/baya-frontend:latest
     container_name: baya-frontend
     ports:
       - "5173:80"

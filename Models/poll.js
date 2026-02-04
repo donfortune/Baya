@@ -11,14 +11,18 @@ const pollSchema = new Schema({
     question: { type: String, required: true },
     roomCode: { type: String, required: true },
     pollId: {type: String, unique: true}, 
-    voters: [{ type: String }], // Array of userIds who voted
+    voters: [{ type: String }], 
     activeUsers: { type: Number, default: 0 },
     status: { type: String, enum: ['active', 'closed'], default: 'active' },
     closedAt: { type: Date, default: null },
-    options: [{ type: String }],  // ← Just text: ["36", "37"]
-    votes: [{ type: Number, default: 0 }],  // ← Just counts: [0, 0],
-    user: { type: Schema.Types.ObjectId, ref: 'User', required: true },// Poll creator
-    is_deleted: { type: Boolean, default: false }
+    options: [{ type: String }],  
+    votes: [{ type: Number, default: 0 }],  
+    user: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    is_deleted: { type: Boolean, default: false },
+
+    // strict mode
+    isStrict: { type: Boolean, default: false },
+    votedUserIds: [{ type: String }]
     
   
 }, { timestamps: true });
