@@ -4,7 +4,8 @@
   "main": "index.js",
   "scripts": {
     "dev": "nodemon --require ./tracing.js index.js",
-    "start": "node --require ./tracing.js index.js"
+    "start": "node --require ./tracing.js index.js",
+    "test": "jest"
   },
   "keywords": [],
   "author": "",
@@ -30,5 +31,10 @@
     "tar": "^6.2.1",
     "glob": "^10.3.10",
     "cross-spawn": "^7.0.5"
+  },
+  "devDependencies": {
+    "jest": "^30.2.0",
+    "mongodb-memory-server": "^11.0.1",
+    "supertest": "^7.2.2"
   }
 }

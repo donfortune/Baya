@@ -5,7 +5,17 @@ const logger = require('../logger');
 
 exports.getAllPolls = async (req, res) => {
     try {
-        const polls = await poll.find({});
+
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const skip = (page - 1) * limit;
+
+
+
+        const polls = await poll.find({})
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit);
 
         if (!polls || polls.length === 0) {
             return res.status(404).json({ success: false, message: 'No polls found' });
@@ -24,6 +34,11 @@ exports.getAllPolls = async (req, res) => {
 
         res.status(200).json({
             success: true,
+            pagination: {
+                currentPage: page,
+                totalPages: Math.ceil(await poll.countDocuments() / limit),
+                pageSize: limit
+            },
             data: formatted
         });
 
