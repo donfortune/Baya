@@ -130,6 +130,7 @@ const express = require('express');
 const http = require('http');
 const socketIO = require('socket.io');
 const mongoose = require('mongoose');
+const rateLimit = require('express-rate-limit');
 const cors = require('cors');
 require('dotenv').config();
 
@@ -140,6 +141,15 @@ require('dotenv').config();
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+const limiter = rateLimit({
+	windowMs: 2 * 60 * 1000, 
+	limit: 2, // Limit each IP to 2 requests per `window` (here, per 2 minutes).
+	standardHeaders: 'draft-8', // draft-6: `RateLimit-*` headers; draft-7 & draft-8: combined `RateLimit` header
+	legacyHeaders: false, // Disable the `X-RateLimit-*` headers.
+	ipv6Subnet: 56, // Set to 60 or 64 to be less aggressive, or 52 or 48 to be more aggressive
+})
+app.use(limiter);
 
 // routes
 app.use('/api', require('./Routes/pollRoutes'));
