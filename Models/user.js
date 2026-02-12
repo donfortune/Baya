@@ -1,8 +1,8 @@
-const mooongose = require('mongoose');
+const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
 
-const userSchema = new mooongose.Schema({
+const userSchema = new mongoose.Schema({
     name: { type: String, required: true },
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true },
@@ -27,4 +27,6 @@ userSchema.methods.comparePassword = async function(candidatePassword) {
     return await bcrypt.compare(candidatePassword, this.password);
 }
 
-module.exports = mooongose.model('User', userSchema);
+// module.exports = mooongose.model('User', userSchema);
+// ✅ SAFE: Checks if model exists first
+module.exports = mongoose.models.User || mongoose.model('User', userSchema);

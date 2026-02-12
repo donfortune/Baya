@@ -49,72 +49,6 @@ exports.getAllPolls = async (req, res) => {
 };
 
 
-
-// exports.createPoll = async (req, res) => {
-//     try {
-//         if (!req.body || Object.keys(req.body).length === 0) {
-//             return res.status(400).json({ message: "Request body is missing" });
-//         }
-
-//         const { question, options, roomCode } = req.body;
-
-//         if (!question || !options || options.length < 2) {
-//             return res.status(400).json({ message: "Invalid poll data" });
-//         }
-
-//         // Utility to generate new room code (only if needed)
-//         const generateRoomCode = () =>
-//             Math.random().toString(36).substring(2, 8).toUpperCase();
-
-//         let finalRoomCode = roomCode;
-
-//         // If roomCode is not provided, create a new one
-//         if (!finalRoomCode) {
-//             finalRoomCode = generateRoomCode();
-//         } else {
-//             // If roomCode WAS provided, check if it exists
-//             const existingPoll = await poll.findOne({ roomCode: finalRoomCode });
-
-//             if (!existingPoll) {
-//                 return res.status(400).json({
-//                     message: `Room code ${finalRoomCode} does not exist`,
-//                 });
-//             }
-//         }
-
-//         // await poll.updateMany(
-//         //     { roomCode: finalRoomCode, status: "active" },
-//         //     { status: "closed", closedAt: new Date() }
-//         // );
-
-//         // Create the poll
-//         const newPoll = new poll({
-//             user: req.user._id,
-//             question,
-//             roomCode: finalRoomCode,
-//             options,
-//         });
-
-//         const savedPoll = await newPoll.save();
-
-//         // ============================================================
-//         // 🚀 THE FIX: Shout "New Poll!" to everyone in the room
-//         // ============================================================
-//         const io = req.app.get('io');
-//         if (io) {
-//             console.log(`📡 Broadcasting new poll to room: ${finalRoomCode}`);
-//             io.to(finalRoomCode).emit('poll_updated', savedPoll);
-//         }
-//         // ============================================================
-        
-//         res.status(201).json(savedPoll);
-
-//     } catch (error) {
-//         console.error("Error creating poll:", error);
-//         res.status(500).json({ message: "Server Error" });
-//     }
-// };
-
 exports.createPoll = async (req, res) => {
     console.log("👉 createPoll Triggered");
     console.log("📥 Payload:", req.body);
@@ -122,19 +56,19 @@ exports.createPoll = async (req, res) => {
     try {
         // Check User Auth
         if (!req.user || !req.user._id) {
-            console.error("❌ Error: User not authenticated in request");
+            console.error("Error: User not authenticated in request");
             return res.status(401).json({ message: "User authentication failed" });
         }
 
         if (!req.body || Object.keys(req.body).length === 0) {
-            console.error("❌ Error: Empty Body");
+            console.error("Error: Empty Body");
             return res.status(400).json({ message: "Request body is missing" });
         }
 
         const { question, options, roomCode, isStrict } = req.body;
 
         if (!question || !options || options.length < 2) {
-            console.error("❌ Error: Validation Failed (Question/Options)");
+            console.error("Error: Validation Failed (Question/Options)");
             return res.status(400).json({ message: "Invalid poll data" });
         }
 
@@ -147,17 +81,17 @@ exports.createPoll = async (req, res) => {
             console.log("✨ Generated New Room Code:", finalRoomCode);
         } else {
             console.log("🔍 Checking Existing Room:", finalRoomCode);
-            // MAKE SURE 'poll' IS IMPORTED CORRECTLY AT TOP OF FILE
+            
             const existingPoll = await poll.findOne({ roomCode: finalRoomCode });
             if (!existingPoll) {
-                console.error("❌ Error: Room Code not found");
+                console.error("Error: Room Code not found");
                 return res.status(400).json({ message: `Room code ${finalRoomCode} does not exist` });
             }
         }
 
-        console.log("💾 Saving to Database...");
+        console.log("Saving to Database...");
         
-        // Ensure variable name matches your import (usually 'Poll' or 'poll')
+        
         const newPoll = new poll({
             user: req.user._id,
             question,
@@ -168,7 +102,7 @@ exports.createPoll = async (req, res) => {
         });
 
         const savedPoll = await newPoll.save();
-        console.log("✅ Poll Saved:", savedPoll._id);
+        console.log("Poll Saved:", savedPoll._id);
 
         // Socket
         const io = req.app.get('io');
@@ -179,7 +113,7 @@ exports.createPoll = async (req, res) => {
         res.status(201).json(savedPoll);
 
     } catch (error) {
-        console.error("❌ CRITICAL SERVER ERROR:", error);
+        console.error("CRITICAL SERVER ERROR:", error);
         res.status(500).json({ message: "Server Error: " + error.message });
     }
 };
@@ -235,29 +169,28 @@ exports.getPollByRoomCode = async (req, res) => {
 
 exports.updatePollStatus = async (req, res) => {
     try {
-        const { pollId } = req.params; // This captures the ID passed in the URL
+        const { pollId } = req.params; 
         const { status } = req.body;
 
-        // 1. Validation
+     
         if (!["active", "closed"].includes(status)) {
             return res.status(400).json({
                 message: "Status must be 'active' or 'closed'"
             });
         }
 
-        // 2. Database Update (FIXED)
-        // We use findByIdAndUpdate to target the MongoDB '_id'
+      
         const updated = await poll.findByIdAndUpdate(
             pollId, 
             { status, closedAt: status === "closed" ? new Date() : null },
-            { new: true } // Return the updated document
+            { new: true } 
         );
 
         if (!updated) {
             return res.status(404).json({ message: "Poll not found" });
         }
 
-        // 3. 🚀 Broadcast via Socket
+     
         const io = req.app.get('io');
         if (io) {
             io.to(updated.roomCode).emit('poll_updated', updated);
@@ -272,93 +205,6 @@ exports.updatePollStatus = async (req, res) => {
 };
 
 
-// exports.votePoll = async (req, res) => {
-//     try {
-//         const { pollId } = req.params;
-//         const { option } = req.body;
-//         // const voterId = req.ip; // or req.user.id if authenticated
-
-//         const { userId } = req.body;  // Get from request body
-//         const voterId = userId || req.ip;  // Fallback to IP if no userId
-
-//         // const pollDetails = await poll.findOne({ pollId });
-//         const pollDetails = await poll.findById(pollId);
-        
-
-//         if (!pollDetails) {
-//             return res.status(404).json({ message: "Poll not found" });
-//         }
-
-//         if (pollDetails.status !== "active") {
-//             return res.status(400).json({ message: "Poll is not active" });
-//         }
-
-//         const optionIndex = pollDetails.options.indexOf(option);
-//         if (optionIndex === -1) {
-//             return res.status(400).json({ message: "Invalid option" });
-//         }
-
-//         // Prevent double voting
-//         // if (pollDetails.voters.includes(voterId)) {
-//         //     return res.status(400).json({ message: "You have already voted" });
-//         // }
-
-//         // Add voter
-//         pollDetails.voters.push(voterId);
-
-//         // Increment vote count
-//         pollDetails.votes[optionIndex] += 1;
-
-//         await pollDetails.save();
-
-//         const currentTotalVotes = pollDetails.votes.reduce((a, b) => a + b, 0); // Total votes
-
-//         // loggin
-//         logger.info({
-//             message: 'Vote Cast',
-//             pollId: pollDetails._id,
-//             question: pollDetails.question,
-//             votes: currentTotalVotes,
-//             service: 'poll-service' // Nice to have for filtering later
-//         });
-
-//        // ✅ UPDATE THE METRIC (Fixed)
-//         if (pollVotes) {
-//             // 1. Calculate the TOTAL votes (Sum of the array [5, 2, 3] -> 10)
-//             const currentTotalVotes = pollDetails.votes.reduce((a, b) => a + b, 0);
-
-//             pollVotes.set(
-//                 // 2. Use 'pollDetails' (not 'poll')
-//                 { pollId: pollDetails._id.toString(), question: pollDetails.question }, 
-//                 currentTotalVotes
-//             );
-            
-//             console.log(`📊 Metric Updated: Poll "${pollDetails.question}" now has ${currentTotalVotes} votes.`);
-//         }
-
-//         // ============================================================
-//         // 🚀 THE REAL-TIME INJECTION (The "Loudspeaker")
-//         // ============================================================
-        
-//         // A. Grab the microphone (Get the IO instance)
-//         const io = req.app.get('io');
-
-//         // B. Shout to the specific Room (The "Danfo Bus")
-//         // We broadcast the ENTIRE updated poll object so the teacher's graph updates instantly
-//         io.to(pollDetails.roomCode).emit('poll_updated', pollDetails);
-
-//         // ============================================================
-
-//         res.status(200).json({
-//             message: "Vote recorded",
-//             poll: pollDetails
-//         });
-
-//     } catch (error) {
-//         console.error("Error voting on poll:", error);
-//         res.status(500).json({ message: "Server Error" });
-//     }
-// };
 
 exports.votePoll = async (req, res) => {
     try {
@@ -417,7 +263,7 @@ exports.votePoll = async (req, res) => {
             service: 'poll-service' 
         });
 
-       // ✅ UPDATE THE METRIC
+      
         if (typeof pollVotes !== 'undefined') { 
             pollVotes.set(
                 { pollId: pollDetails._id.toString(), question: pollDetails.question }, 
@@ -453,7 +299,7 @@ exports.resetVotes = async (req, res) => {
             return res.status(404).json({ message: "Poll not found" });
         }
 
-        // Reset votes and voters
+      
         pollDetails.votes = pollDetails.options.map(() => 0);
         pollDetails.voters = [];
 
@@ -490,7 +336,7 @@ exports.getAllPollsByUser = async (req, res) => {
     }
 }
 
-// soft delete
+
 exports.deletePoll = async (req, res) => {
     try {
         const { pollId } = req.params;

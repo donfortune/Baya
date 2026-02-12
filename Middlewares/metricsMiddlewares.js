@@ -60,10 +60,7 @@ const requestMetricsMiddleware = (req, res, next) => {
     next();
 };
 
-/**
- * Middleware to increment total users counter
- * Use this **only on the user registration route**
- */
+
 const incrementUserCounter = (req, res, next) => {
     try {
         metrics.totalUsers.inc(); // Increment counter by 1
@@ -73,10 +70,7 @@ const incrementUserCounter = (req, res, next) => {
     next();
 };
 
-/**
- * Middleware to update poll votes gauge when votes change
- * Call this **only in routes/controllers that modify poll votes**
- */
+
 const updatePollVotesMiddleware = async (pollId) => {
     try {
         const poll = await Poll.findById(pollId, { question: 1, votes: 1 });
