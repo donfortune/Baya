@@ -130,6 +130,8 @@ const express = require('express');
 const http = require('http');
 const socketIO = require('socket.io');
 const mongoose = require('mongoose');
+const swaggerUi = require('swagger-ui-express');
+const swaggerSpec = require('./config/swagger');
 const cors = require('cors');
 require('dotenv').config();
 
@@ -141,7 +143,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // routes
 app.use('/api', require('./Routes/pollRoutes'));
