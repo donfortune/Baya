@@ -1,0 +1,48 @@
+paths:
+  /users/register:
+    post:
+      summary: Register a new user
+      tags: [Users]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                email:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '201':
+          description: User created successfully
+        '400':
+          description: Missing required fields
+        '500':
+          description: Server Error
+
+  /users/login:
+    post:
+      summary: Login a user
+      tags: [Users]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Login successful, returns JWT
+        '401':
+          description: Invalid credentials

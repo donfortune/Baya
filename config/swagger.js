@@ -29,7 +29,7 @@ const options = {
     security: [{ bearerAuth: [] }],
   },
   // Look for docs in these files
-  apis: ['./Routes/*.js'], 
+  apis: ['./docs/**/*.yaml'],
 };
 
 const swaggerSpec = swaggerJsdoc(options);

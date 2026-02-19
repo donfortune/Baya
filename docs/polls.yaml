@@ -1,0 +1,61 @@
+paths:
+  /polls:
+    post:
+      summary: Create a new poll
+      tags: [Polls]
+      # THIS IS THE PADLOCK 🔒
+      # Because this is here, Swagger will force the user to provide a token
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - question
+                - options
+              properties:
+                question:
+                  type: string
+                  example: "Tabs or Spaces?"
+                options:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      text:
+                        type: string
+                        example: "Tabs"
+                settings:
+                  type: object
+                  properties:
+                    isPublic:
+                      type: boolean
+                      example: true
+      responses:
+        '201':
+          description: The poll was created successfully
+        '401':
+          description: Unauthorized - Missing or invalid token
+        '500':
+          description: Server error
+
+  /polls/{id}:
+    get:
+      summary: Get details of a specific poll
+      tags: [Polls]
+      # If getting a poll is public, we leave the security block out!
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: The unique MongoDB ID of the poll
+      responses:
+        '200':
+          description: Successfully retrieved poll data
+        '404':
+          description: Poll not found
