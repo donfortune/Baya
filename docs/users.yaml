@@ -46,3 +46,56 @@ paths:
           description: Login successful, returns JWT
         '401':
           description: Invalid credentials
+
+  /users:
+    get:
+      summary: Get a list of all users
+      tags: [Users]
+      # Assuming this requires a logged-in user or admin
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: A list of users retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    _id:
+                      type: string
+                    name:
+                      type: string
+                    email:
+                      type: string
+        '401':
+          description: Unauthorized - Missing or invalid token
+
+  /users/google:
+    post:
+      summary: Authenticate a user via Google OAuth
+      tags: [Users]
+      # Public route, no padlock needed
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - token
+              properties:
+                token:
+                  type: string
+                  description: The ID token received from Google
+                  example: "eyJhbGciOiJSUzI1NiIsImtpZ..."
+      responses:
+        '200':
+          description: Google Login successful, returns JWT
+        '400':
+          description: Invalid Google token
+        '429':
+          description: Too Many Requests - Rate limit exceeded # <--- Because of your authLimiter!

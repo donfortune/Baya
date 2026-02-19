@@ -1,25 +1,94 @@
+# paths:
+#   /polls:
+#     post:
+#       summary: Create a new poll
+#       tags: [Polls]
+#       # THIS IS THE PADLOCK 🔒
+#       # Because this is here, Swagger will force the user to provide a token
+#       security:
+#         - bearerAuth: []
+#       requestBody:
+#         required: true
+#         content:
+#           application/json:
+#             schema:
+#               type: object
+#               required:
+#                 - question
+#                 - options
+#               properties:
+#                 question:
+#                   type: string
+#                   example: "Tabs or Spaces?"
+#                 options:
+#                   type: array
+#                   items:
+#                     type: object
+#                     properties:
+#                       text:
+#                         type: string
+#                         example: "Tabs"
+#                 settings:
+#                   type: object
+#                   properties:
+#                     isPublic:
+#                       type: boolean
+#                       example: true
+#       responses:
+#         '201':
+#           description: The poll was created successfully
+#         '401':
+#           description: Unauthorized - Missing or invalid token
+#         '500':
+#           description: Server error
+
+#   /polls/{id}:
+#     get:
+#       summary: Get details of a specific poll
+#       tags: [Polls]
+#       # If getting a poll is public, we leave the security block out!
+#       parameters:
+#         - in: path
+#           name: id
+#           required: true
+#           schema:
+#             type: string
+#           description: The unique MongoDB ID of the poll
+#       responses:
+#         '200':
+#           description: Successfully retrieved poll data
+#         '404':
+#           description: Poll not found
+
+
 paths:
   /polls:
+    get:
+      summary: Get all public polls
+      tags: [Polls]
+      security: [] # Public route
+      responses:
+        '200':
+          description: A list of polls retrieved successfully
+        '429':
+          description: Too Many Requests - Rate limit exceeded
+          
     post:
       summary: Create a new poll
       tags: [Polls]
-      # THIS IS THE PADLOCK 🔒
-      # Because this is here, Swagger will force the user to provide a token
       security:
-        - bearerAuth: []
+        - bearerAuth: [] # Protected route
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required:
-                - question
-                - options
+              required: [question, options]
               properties:
                 question:
                   type: string
-                  example: "Tabs or Spaces?"
+                  example: "What is the best programming language?"
                 options:
                   type: array
                   items:
@@ -27,29 +96,23 @@ paths:
                     properties:
                       text:
                         type: string
-                        example: "Tabs"
-                settings:
-                  type: object
-                  properties:
-                    isPublic:
-                      type: boolean
-                      example: true
+                        example: "JavaScript"
       responses:
         '201':
-          description: The poll was created successfully
+          description: Poll created successfully
         '401':
-          description: Unauthorized - Missing or invalid token
-        '500':
-          description: Server error
+          description: Unauthorized
+        '429':
+          description: Too Many Requests - Rate limit exceeded
 
-  /polls/{id}:
+  /polls/{pollId}:
     get:
       summary: Get details of a specific poll
       tags: [Polls]
-      # If getting a poll is public, we leave the security block out!
+      security: []
       parameters:
         - in: path
-          name: id
+          name: pollId
           required: true
           schema:
             type: string
@@ -59,3 +122,132 @@ paths:
           description: Successfully retrieved poll data
         '404':
           description: Poll not found
+
+    delete:
+      summary: Delete a poll
+      tags: [Polls]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: pollId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Poll deleted successfully
+        '401':
+          description: Unauthorized
+        '404':
+          description: Poll not found
+
+  /polls/room/{roomCode}:
+    get:
+      summary: Get a poll by its unique Room Code
+      tags: [Polls]
+      security: []
+      parameters:
+        - in: path
+          name: roomCode
+          required: true
+          schema:
+            type: string
+          description: The 6-digit room code for live polling
+      responses:
+        '200':
+          description: Successfully retrieved the poll
+        '404':
+          description: Room not found
+
+  /polls/{pollId}/status:
+    patch:
+      summary: Update the active/closed status of a poll
+      tags: [Polls]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: pollId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                isActive:
+                  type: boolean
+                  example: false
+      responses:
+        '200':
+          description: Poll status updated
+        '401':
+          description: Unauthorized
+
+  /polls/{pollId}/vote:
+    post:
+      summary: Cast a vote on a poll
+      tags: [Polls]
+      security: [] # Assuming voting is public
+      parameters:
+        - in: path
+          name: pollId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [optionId]
+              properties:
+                optionId:
+                  type: string
+                  description: The ID of the option being voted for
+      responses:
+        '200':
+          description: Vote registered successfully
+        '404':
+          description: Poll or option not found
+
+  /polls/{pollId}/ResetVotes:
+    post:
+      summary: Reset all votes for a specific poll
+      tags: [Polls]
+      security:
+        - bearerAuth: [] # You need to add authMiddleware to your Express route!
+      parameters:
+        - in: path
+          name: pollId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Votes reset to zero
+        '401':
+          description: Unauthorized
+
+  /polls/user/{userId}:
+    get:
+      summary: Get all polls created by a specific user
+      tags: [Polls]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of user's polls
+        '401':
+          description: Unauthorized
