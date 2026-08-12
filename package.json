@@ -15,6 +15,7 @@
     "@opentelemetry/auto-instrumentations-node": "^0.67.3",
     "@opentelemetry/exporter-trace-otlp-proto": "^0.209.0",
     "@opentelemetry/sdk-node": "^0.209.0",
+    "@socket.io/redis-adapter": "^8.3.0",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
@@ -40,6 +41,7 @@
     "cross-spawn": "^7.0.5"
   },
   "devDependencies": {
+    "autocannon": "^8.0.0",
     "jest": "^30.2.0",
     "mongodb-memory-server": "^11.0.1",
     "supertest": "^7.2.2"

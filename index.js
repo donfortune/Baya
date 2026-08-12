@@ -1,134 +1,8 @@
-// const express = require('express');
-// const env = require('dotenv')
-// const mongoose = require('mongoose');
-// const mongoSanitize = require('express-mongo-sanitize');
-// const pollRoutes = require('./Routes/pollRoutes');
-// const roomRoutes = require('./Routes/roomRoutes')
-// const userRoutes = require('./Routes/userRoutes');
-// const metricRoutes = require('./Routes/metricsRoutes');
-// const metricsMiddleware = require('./Middlewares/metricsMiddlewares');
-// const cors = require('cors');
-// const socket = require('socket.io');
-
-
-// const app = express();
-// const server = require('http').createServer(app);
-
-// const io = new socket.Server(server, {
-//     cors: {
-//         origin: "*",
-//         methods: ["GET", "POST"]
-//     }   
-// });
-
-// app.set('io', io); // Make io accessible in routes/controllers 
-
-// io.on('connection', (socket) => {
-//     console.log('⚡ New client connected:', socket.id);
-
-//     // Add this to handle room joining
-//     socket.on('join_room', (roomCode) => {
-//         socket.join(roomCode);
-//         console.log(`Socket ${socket.id} joined ${roomCode}`);
-//     });
-
-//     // Add Panic Button Event
-//     socket.on('panic_button', (roomCode) => {
-//         console.log(`Panic button pressed in room: ${roomCode}`);
-//         // Broadcast to all clients in the room except the sender
-//         socket.to(roomCode).emit('panic_alert', { message: 'Panic button activated!' });
-//     });
-
-//     //Add whsipers event
-//     socket.on('whisper', ({ roomCode, message }) => {
-//         console.log(`Whisper in room ${roomCode}: ${message}`);
-//         // Broadcast the whisper to all clients in the room except the sender
-//         socket.to(roomCode).emit('whisper_message', { message });
-//     });
-
-//     // // Add emoji reaction event
-//     // socket.on('emoji_reaction', ({ roomCode, emoji }) => {
-//     //     console.log(`Emoji reaction in room ${roomCode}: ${emoji}`);
-//     //     // Broadcast the emoji reaction to all clients in the room except the sender
-//     //     socket.to(roomCode).emit('emoji_reaction_broadcast', { emoji });
-//     // });
-
-//     // =======================================================
-//     // 4. MISSING PIECE: EMOJI REACTIONS 🚀
-//     // =======================================================
-//     socket.on('reaction', ({ roomCode, emoji }) => {
-//         console.log(`Reaction in ${roomCode}: ${emoji}`);
-//         // "Loudspeaker": Send to everyone in the room (Teacher AND Student)
-//         io.to(roomCode).emit('reaction_received', { 
-//             emoji, 
-//             id: Date.now() + Math.random() // Unique ID for animation
-//         });
-//     });
-//     // =======================================================
-
-//     socket.on('disconnect', () => {
-//         console.log('Client disconnected:', socket.id);
-//     });
-// });
-
-
-
-
-// env.config();
-
-
-// app.use(cors());
-
-
-
-
-// // mongoose.connect(process.env.MONGODB_URI, {
-// //     // useNewUrlParser: true,
-// //     // useUnifiedTopology: true,
-// // }).then(() => {
-// //     console.log('Connected to MongoDB');
-// // }).catch((err) => {
-// //     console.error('Error connecting to MongoDB:', err);
-// // })
-
-
-// app.use(express.json());
-// // app.use(mongoSanitize());
-
-// app.use(metricsMiddleware.requestMetricsMiddleware);
-
-// app.use('/api', pollRoutes);
-// app.use('/api', roomRoutes);
-// app.use('/api', userRoutes);
-// app.use('/metrics', metricRoutes);
-
-
-
-// // server.listen(port, () => {
-// //     console.log(`Server is running on http://localhost:${port}`);
-// // })
-
-
-// if (require.main === module) {
-//     const port = process.env.PORT 
-//     mongoose.connect(process.env.MONGODB_URI, {
-//         // useNewUrlParser: true,
-//         // useUnifiedTopology: true,
-//     }).then(() => {
-//         console.log('Connected to MongoDB');
-//         server.listen(port, () => {
-//             console.log(`Server is running on http://localhost:${port}`);
-//         });
-// }
-// ).catch((err) => {    console.error('Error connecting to MongoDB:', err);
-// })
-// } else {
-//     module.exports = app; // Export app for testing
-// }
-
 const express = require('express');
 const http = require('http');
 const socketIO = require('socket.io');
+const { createAdapter } = require('@socket.io/redis-adapter');
+const Redis = require('ioredis');
 const mongoose = require('mongoose');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./config/swagger');
@@ -155,6 +29,11 @@ app.use('/metrics', require('./Routes/metricsRoutes'));
 // 2. EXPORT APP FOR TESTS
 // =========================
 module.exports = app;
+const pubClient = new Redis(); // Connects to your local background Redis
+const subClient = pubClient.duplicate();
+
+// 2. Plug the Redis Adapter into Socket.io
+// io.adapter(createAdapter(pubClient, subClient));
 
 // =========================
 // 3. START SERVER ONLY IF RUN DIRECTLY
@@ -212,3 +91,77 @@ if (require.main === module) {
     })
     .catch(console.error);
 }
+
+
+// const express = require('express');
+// const http = require('http');
+// const socketIO = require('socket.io');
+// const { createAdapter } = require('@socket.io/redis-adapter');
+// const Redis = require('ioredis');
+// const mongoose = require('mongoose');
+// const swaggerUi = require('swagger-ui-express');
+// const swaggerSpec = require('./config/swagger');
+// const cors = require('cors');
+// require('dotenv').config();
+
+// const app = express();
+// app.use(cors());
+// app.use(express.json());
+
+// app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+
+// app.use('/api', require('./Routes/pollRoutes'));
+// app.use('/api', require('./Routes/roomRoutes'));
+// app.use('/api', require('./Routes/userRoutes'));
+// app.use('/metrics', require('./Routes/metricsRoutes'));
+
+// module.exports = app;
+
+// if (require.main === module) {
+//   const server = http.createServer(app);
+
+//   const io = new socketIO.Server(server, {
+//     cors: {
+//       origin: '*',
+//       methods: ['GET', 'POST'],
+//     },
+//   });
+
+//   app.set('io', io);
+
+//   const pubClient = new Redis();
+//   const subClient = pubClient.duplicate();
+//   io.adapter(createAdapter(pubClient, subClient));
+
+//   io.on('connection', (socket) => {
+//     socket.on('join_room', (roomCode) => {
+//       socket.join(roomCode);
+//     });
+
+//     socket.on('panic_button', (roomCode) => {
+//       socket.to(roomCode).emit('panic_alert', {
+//         message: 'Panic button activated!',
+//       });
+//     });
+
+//     socket.on('whisper', ({ roomCode, message }) => {
+//       socket.to(roomCode).emit('whisper_message', { message });
+//     });
+
+//     socket.on('reaction', ({ roomCode, emoji }) => {
+//       io.to(roomCode).emit('reaction_received', {
+//         emoji,
+//         id: Date.now() + Math.random(),
+//       });
+//     });
+//   });
+
+//   const PORT = process.env.PORT || 3000;
+
+//   mongoose
+//     .connect(process.env.MONGODB_URI)
+//     .then(() => {
+//       server.listen(PORT, () => {});
+//     })
+//     .catch(console.error);
+// }

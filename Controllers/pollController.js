@@ -213,6 +213,7 @@ exports.votePoll = async (req, res) => {
 
         
         const pollDetails = await poll.findById(pollId);
+        
 
         if (!pollDetails) {
             return res.status(404).json({ message: "Poll not found" });
@@ -246,6 +247,7 @@ exports.votePoll = async (req, res) => {
             return res.status(400).json({ message: "Invalid option" });
         }
 
+        
       
         pollDetails.votes[optionIndex] += 1;
 

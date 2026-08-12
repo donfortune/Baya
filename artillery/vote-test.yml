@@ -1,0 +1,18 @@
+config:
+  target: "http://localhost:3000"
+  phases:
+    - duration: 30
+      arrivalRate: 10   # start safe, increase later
+
+scenarios:
+  - name: "Vote Poll Test"
+    flow:
+      - post:
+          url: "/polls/6a28045f792dfd78a7aa435c/vote"
+          headers:
+            Content-Type: "application/json"
+          json:
+            option: "Yes, it works"
+            studentId: "student-{{ $randomString() }}"
+          expect:
+            - statusCode: 200
