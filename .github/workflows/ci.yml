@@ -409,9 +409,13 @@ jobs:
 
       # ----------------------------------------------------------
       # SEMANTIC VERSIONING
+      #
+      # Only create a new version when code is pushed to main.
+      # Pull requests should NOT create tags or releases.
       # ----------------------------------------------------------
 
       - name: Calculate Semantic version
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         id: tag_version
         uses: anothrNick/github-tag-action@v1
         env:
@@ -523,9 +527,12 @@ jobs:
 
       # ----------------------------------------------------------
       # Docker Hub login
+      #
+      # Only required when pushing images.
       # ----------------------------------------------------------
 
       - name: Login to Docker Hub
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
@@ -534,6 +541,10 @@ jobs:
 
       # ----------------------------------------------------------
       # Build backend image
+      #
+      # Runs on both PR and main.
+      # On PR it only builds.
+      # On main it also gets pushed later.
       # ----------------------------------------------------------
 
       - name: Build Backend Image
@@ -545,15 +556,15 @@ jobs:
           tags: donfortune1/baya-backend:test
 
 
-      # # ==========================================================
-      # # 6. TRIVY DOCKER IMAGE SCAN
-      # # ==========================================================
+      # ==========================================================
+      # 6. TRIVY DOCKER IMAGE SCAN
+      # ==========================================================
 
-      # # ----------------------------------------------------------
-      # # Trivy image report
-      # #
-      # # Generates SARIF but does NOT fail the pipeline.
-      # # ----------------------------------------------------------
+      # ----------------------------------------------------------
+      # Trivy image report
+      #
+      # Generates SARIF but does NOT fail the pipeline.
+      # ----------------------------------------------------------
 
       # - name: Run Trivy Image (Report)
       #   uses: aquasecurity/trivy-action@v0.35.0
@@ -566,7 +577,7 @@ jobs:
 
 
       # # ----------------------------------------------------------
-      # # Verify SARIF file exists
+      # # Verify Docker image SARIF
       # # ----------------------------------------------------------
 
       # - name: Verify Trivy Image SARIF
@@ -583,7 +594,7 @@ jobs:
 
 
       # # ----------------------------------------------------------
-      # # Upload SARIF to GitHub Security
+      # # Upload Trivy image results
       # # ----------------------------------------------------------
 
       # - name: Upload Trivy Image Results
@@ -624,9 +635,12 @@ jobs:
 
       # ==========================================================
       # 8. PUSH BACKEND IMAGE
+      #
+      # Only push images from main branch pushes.
       # ==========================================================
 
       - name: Push Backend Image
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -641,7 +655,19 @@ jobs:
       # 9. BUILD + PUSH FRONTEND
       # ==========================================================
 
-      - name: Build and push Frontend
+      - name: Build Frontend Image
+        if: github.event_name == 'pull_request'
+        uses: docker/build-push-action@v6
+        with:
+          context: ./client
+          file: ./client/dockerfile
+          load: false
+          push: false
+          tags: donfortune1/baya-frontend:test
+
+
+      - name: Build and Push Frontend
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: docker/build-push-action@v6
         with:
           context: ./client
@@ -657,12 +683,14 @@ jobs:
       # ==========================================================
 
       - name: Create GitHub Release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: ncipollo/release-action@v1
         with:
           tag: ${{ steps.tag_version.outputs.new_tag }}
           name: Release ${{ steps.tag_version.outputs.new_tag }}
           body: "Automated release of version ${{ steps.tag_version.outputs.new_tag }}"
           token: ${{ secrets.GITHUB_TOKEN }}
+          skipIfReleaseExists: true
 
 
 
