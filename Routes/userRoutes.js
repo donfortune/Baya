@@ -4,7 +4,7 @@ const router = express.Router();
 
 const authController = require('../Controllers/authController'); 
 
-const metricsMiddleware = require('../middlewares/metricsMiddlewares'); 
+const metricsMiddleware = require('../Middlewares/metricsMiddlewares'); 
 const rateLimiter = require('../Middlewares/rateLimiter');
 
 
