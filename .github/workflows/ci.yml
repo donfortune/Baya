@@ -1,305 +1,279 @@
-# # name: Pipeline
-
-# # on:
-# #   push:
-# #     branches: [ "main" ]
-# #   pull_request:
-# #     branches: [ "main" ]
-
-# # jobs:
-# #   security-and-build:
-# #     runs-on: ubuntu-latest
-# #     permissions:
-# #       security-events: write
-# #       contents: write
-# #       packages: write
-
-# #     steps:
-# #       - name: Checkout code
-# #         uses: actions/checkout@v4
-# #         with:
-# #           fetch-depth: 0 
-      
-# #       - name: Calculate Semantic version
-# #         id: tag_version 
-# #         uses: anothrNick/github-tag-action@v1
-# #         env:
-# #           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-# #           WITH_V: true              
-# #           DEFAULT_BUMP: patch       
-# #           RELEASE_BRANCHES: main
-# #           VERBOSE: true
-
-      
-# #       # 1. SECRET SCANNING (Gitleaks)
-   
-# #       - name: Gitleaks Scan
-# #         uses: gitleaks/gitleaks-action@v2  # <--- UPDATED to modern version
-# #         env:
-# #           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-# #           GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }} # Optional, usually fine without for OSS
-
-      
-# #       # 2. SAST (CodeQL)
-     
-# #       - name: Initialize CodeQL
-# #         uses: github/codeql-action/init@v3
-# #         with:
-# #           languages: javascript
-      
-# #       - name: Perform CodeQL Analysis
-# #         uses: github/codeql-action/analyze@v3
-
-     
-# #       # 3. SCA (Trivy Filesystem)
-      
-      
-# #       # Step A: REPORT EVERYTHING (High & Critical)
-# #       # Does not fail (exit-code 0). Just generates the report.
-# #       - name: Run Trivy FS (Report)
-# #         uses: aquasecurity/trivy-action@master
-# #         with:
-# #           scan-type: 'fs'
-# #           scan-ref: '.'
-# #           format: 'sarif'
-# #           output: 'trivy-fs-results.sarif'
-# #           severity: 'CRITICAL,HIGH'
-# #           exit-code: '0' 
-      
-# #       - name: Upload Trivy FS Results
-# #         uses: github/codeql-action/upload-sarif@v3
-# #         if: always()
-# #         with:
-# #           sarif_file: 'trivy-fs-results.sarif'
-# #           category: 'trivy-fs'
-
-# #       # Step B: FAIL ON CRITICAL 
-# #       # Scans again but strictly checks for CRITICAL only. Fails if found.
-# #       - name: Run Trivy FS (Gatekeeper)
-# #         uses: aquasecurity/trivy-action@master
-# #         with:
-# #           scan-type: 'fs'
-# #           scan-ref: '.'
-# #           format: 'table'   
-# #           severity: 'CRITICAL'
-# #           exit-code: '1'    
-
-      
-# #       # 4. BUILD & CONTAINER SCAN
-    
-
-# #       - name: Set up Docker Buildx
-# #         uses: docker/setup-buildx-action@v3
-
-# #       - name: Login to Docker Hub
-# #         uses: docker/login-action@v3
-# #         with:
-# #           username: ${{ secrets.DOCKER_USERNAME }}
-# #           password: ${{ secrets.DOCKER_PASSWORD }}
-
-# #       - name: Build Backend Image
-# #         uses: docker/build-push-action@v5
-# #         with:
-# #           context: .
-# #           file: ./dockerfile
-# #           load: true 
-# #           tags: donfortune1/baya-backend:test
-                
-
-# #       # Step A: REPORT EVERYTHING (High & Critical)
-# #       - name: Run Trivy Image (Report)
-# #         uses: aquasecurity/trivy-action@master
-# #         with:
-# #           image-ref: 'donfortune1/baya-backend:test'
-# #           format: 'sarif'
-# #           output: 'trivy-image-results.sarif'
-# #           severity: 'CRITICAL,HIGH'
-# #           exit-code: '0' 
-
-# #       - name: Upload Trivy Image Results
-# #         uses: github/codeql-action/upload-sarif@v3
-# #         if: always()
-# #         with:
-# #           sarif_file: 'trivy-image-results.sarif'
-# #           category: 'trivy-image'
-
-# #       # Step B: FAIL ON CRITICAL (The Gatekeeper)
-# #       - name: Run Trivy Image (Gatekeeper)
-# #         uses: aquasecurity/trivy-action@master
-# #         with:
-# #           image-ref: 'donfortune1/baya-backend:test'
-# #           format: 'table'
-# #           severity: 'CRITICAL'
-# #           exit-code: '1'
-
-      
-# #       # 5. INFRASTRUCTURE & DELIVERY
-      
-
-# #       - name: Run Checkov
-# #         uses: bridgecrewio/checkov-action@master
-# #         with:
-# #           directory: .
-# #           framework: dockerfile,secrets
-# #           quiet: true
-# #           soft_fail: true 
-
-# #       - name: Push Backend Image
-# #         uses: docker/build-push-action@v5
-# #         with:
-# #           context: .
-# #           file: ./dockerfile
-# #           push: true
-# #           tags: |
-# #             donfortune1/baya-backend:latest
-# #             donfortune1/baya-backend:${{ steps.tag_version.outputs.new_tag }}
-      
-# #       - name: Build and push Frontend
-# #         uses: docker/build-push-action@v5
-# #         with:
-# #           context: ./client
-# #           file: ./client/dockerfile
-# #           push: true
-# #           tags: |
-# #             donfortune1/baya-frontend:latest
-# #             donfortune1/baya-frontend:${{ steps.tag_version.outputs.new_tag }}
-
-# #       - name: Create GitHub Release
-# #         uses: ncipollo/release-action@v1
-# #         with:
-# #           tag: ${{ steps.tag_version.outputs.new_tag }}
-# #           name: Release ${{ steps.tag_version.outputs.new_tag }}
-# #           body: "Automated release of version ${{ steps.tag_version.outputs.new_tag }}"
-# #           token: ${{ secrets.GITHUB_TOKEN }}
 
 # name: Pipeline
 
 # on:
 #   push:
-#     branches: [ "main" ]
+#     branches:
+#       - "main"
+
 #   pull_request:
-#     branches: [ "main" ]
+#     branches:
+#       - "main"
+
 
 # jobs:
+
+#   # ============================================================
+#   # 1. SECURITY + BUILD
+#   # ============================================================
+
 #   security-and-build:
+
 #     runs-on: ubuntu-latest
+
 #     permissions:
 #       security-events: write
 #       contents: write
 #       packages: write
 
+
 #     steps:
+
+#       # ----------------------------------------------------------
+#       # CHECKOUT
+#       # ----------------------------------------------------------
+
 #       - name: Checkout code
 #         uses: actions/checkout@v4
 #         with:
-#           fetch-depth: 0 
-      
+#           fetch-depth: 0
+
+
+#       # ----------------------------------------------------------
+#       # SEMANTIC VERSIONING
+#       #
+#       # Only create a new version when code is pushed to main.
+#       # Pull requests should NOT create tags or releases.
+#       # ----------------------------------------------------------
+
 #       - name: Calculate Semantic version
-#         id: tag_version 
+#         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+#         id: tag_version
 #         uses: anothrNick/github-tag-action@v1
 #         env:
 #           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-#           WITH_V: true              
-#           DEFAULT_BUMP: patch       
+#           WITH_V: true
+#           DEFAULT_BUMP: patch
 #           RELEASE_BRANCHES: main
 #           VERBOSE: true
-      
-#       # 1. SECRET SCANNING (Gitleaks)
+
+
+#       # ==========================================================
+#       # 2. SECRET SCANNING
+#       # ==========================================================
+
 #       - name: Gitleaks Scan
-#         uses: gitleaks/gitleaks-action@v2 
+#         uses: gitleaks/gitleaks-action@v2
 #         env:
 #           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-#           GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }} 
+#           GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
 
-#       # 2. SAST (CodeQL)
+
+#       # ==========================================================
+#       # 3. SAST - CODEQL
+#       # ==========================================================
+
 #       - name: Initialize CodeQL
 #         uses: github/codeql-action/init@v3
 #         with:
 #           languages: javascript
-      
+
+
 #       - name: Perform CodeQL Analysis
 #         uses: github/codeql-action/analyze@v3
 
-#       # 3. SCA (Trivy Filesystem)
+
+#       # ==========================================================
+#       # 4. SCA - TRIVY FILESYSTEM SCAN
+#       # ==========================================================
+
+#       # ----------------------------------------------------------
+#       # Trivy report
+#       #
+#       # Generates a SARIF report but does NOT fail the pipeline.
+#       # ----------------------------------------------------------
+
 #       - name: Run Trivy FS (Report)
-#         uses: aquasecurity/trivy-action@master
+#         uses: aquasecurity/trivy-action@v0.35.0
 #         with:
-#           scan-type: 'fs'
-#           scan-ref: '.'
-#           format: 'sarif'
-#           output: 'trivy-fs-results.sarif'
-#           severity: 'CRITICAL,HIGH'
-#           exit-code: '0' 
-      
-#       - name: Upload Trivy FS Results
-#         uses: github/codeql-action/upload-sarif@v3
+#           scan-type: fs
+#           scan-ref: .
+#           format: sarif
+#           output: trivy-fs-results.sarif
+#           severity: CRITICAL,HIGH
+#           exit-code: "0"
+
+
+#       # ----------------------------------------------------------
+#       # Verify SARIF file exists
+#       # ----------------------------------------------------------
+
+#       - name: Verify Trivy FS SARIF
 #         if: always()
+#         run: |
+#           echo "Checking Trivy filesystem report..."
+
+#           if [ -f "trivy-fs-results.sarif" ]; then
+#             echo "Trivy FS SARIF report found."
+#             ls -lh trivy-fs-results.sarif
+#           else
+#             echo "WARNING: Trivy FS SARIF report was not generated."
+#           fi
+
+
+#       # ----------------------------------------------------------
+#       # Upload SARIF to GitHub Security
+#       # ----------------------------------------------------------
+
+#       - name: Upload Trivy FS Results
+#         if: always() && hashFiles('trivy-fs-results.sarif') != ''
+#         uses: github/codeql-action/upload-sarif@v4
 #         with:
-#           sarif_file: 'trivy-fs-results.sarif'
-#           category: 'trivy-fs'
+#           sarif_file: trivy-fs-results.sarif
+#           category: trivy-fs
+
+
+#       # ----------------------------------------------------------
+#       # Trivy filesystem gatekeeper
+#       #
+#       # Pipeline FAILS if CRITICAL vulnerabilities are found.
+#       # ----------------------------------------------------------
 
 #       - name: Run Trivy FS (Gatekeeper)
-#         uses: aquasecurity/trivy-action@master
+#         uses: aquasecurity/trivy-action@v0.35.0
 #         with:
-#           scan-type: 'fs'
-#           scan-ref: '.'
-#           format: 'table'   
-#           severity: 'CRITICAL'
-#           exit-code: '1'    
-      
-#       # 4. BUILD & CONTAINER SCAN
+#           scan-type: fs
+#           scan-ref: .
+#           format: table
+#           severity: CRITICAL
+#           exit-code: "1"
+
+
+#       # ==========================================================
+#       # 5. DOCKER BUILD
+#       # ==========================================================
+
 #       - name: Set up Docker Buildx
 #         uses: docker/setup-buildx-action@v3
 
+
+#       # ----------------------------------------------------------
+#       # Docker Hub login
+#       #
+#       # Only required when pushing images.
+#       # ----------------------------------------------------------
+
 #       - name: Login to Docker Hub
+#         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 #         uses: docker/login-action@v3
 #         with:
 #           username: ${{ secrets.DOCKER_USERNAME }}
 #           password: ${{ secrets.DOCKER_PASSWORD }}
 
+
+#       # ----------------------------------------------------------
+#       # Build backend image
+#       #
+#       # Runs on both PR and main.
+#       # On PR it only builds.
+#       # On main it also gets pushed later.
+#       # ----------------------------------------------------------
+
 #       - name: Build Backend Image
-#         uses: docker/build-push-action@v5
+#         uses: docker/build-push-action@v6
 #         with:
 #           context: .
 #           file: ./dockerfile
-#           load: true 
+#           load: true
 #           tags: donfortune1/baya-backend:test
-                
-#       - name: Run Trivy Image (Report)
-#         uses: aquasecurity/trivy-action@master
-#         with:
-#           image-ref: 'donfortune1/baya-backend:test'
-#           format: 'sarif'
-#           output: 'trivy-image-results.sarif'
-#           severity: 'CRITICAL,HIGH'
-#           exit-code: '0' 
 
-#       - name: Upload Trivy Image Results
-#         uses: github/codeql-action/upload-sarif@v3
-#         if: always()
-#         with:
-#           sarif_file: 'trivy-image-results.sarif'
-#           category: 'trivy-image'
 
-#       - name: Run Trivy Image (Gatekeeper)
-#         uses: aquasecurity/trivy-action@master
-#         with:
-#           image-ref: 'donfortune1/baya-backend:test'
-#           format: 'table'
-#           severity: 'CRITICAL'
-#           exit-code: '1'
-      
-#       # 5. INFRASTRUCTURE & DELIVERY
+#       # ==========================================================
+#       # 6. TRIVY DOCKER IMAGE SCAN
+#       # ==========================================================
+
+#       # ----------------------------------------------------------
+#       # Trivy image report
+#       #
+#       # Generates SARIF but does NOT fail the pipeline.
+#       # ----------------------------------------------------------
+
+#       # - name: Run Trivy Image (Report)
+#       #   uses: aquasecurity/trivy-action@v0.35.0
+#       #   with:
+#       #     image-ref: donfortune1/baya-backend:test
+#       #     format: sarif
+#       #     output: trivy-image-results.sarif
+#       #     severity: CRITICAL,HIGH
+#       #     exit-code: "0"
+
+
+#       # # ----------------------------------------------------------
+#       # # Verify Docker image SARIF
+#       # # ----------------------------------------------------------
+
+#       # - name: Verify Trivy Image SARIF
+#       #   if: always()
+#       #   run: |
+#       #     echo "Checking Trivy image report..."
+
+#       #     if [ -f "trivy-image-results.sarif" ]; then
+#       #       echo "Trivy image SARIF report found."
+#       #       ls -lh trivy-image-results.sarif
+#       #     else
+#       #       echo "WARNING: Trivy image SARIF report was not generated."
+#       #     fi
+
+
+#       # # ----------------------------------------------------------
+#       # # Upload Trivy image results
+#       # # ----------------------------------------------------------
+
+#       # - name: Upload Trivy Image Results
+#       #   if: always() && hashFiles('trivy-image-results.sarif') != ''
+#       #   uses: github/codeql-action/upload-sarif@v4
+#       #   with:
+#       #     sarif_file: trivy-image-results.sarif
+#       #     category: trivy-image
+
+
+#       # # ----------------------------------------------------------
+#       # # Trivy image gatekeeper
+#       # #
+#       # # Pipeline FAILS if CRITICAL vulnerabilities are found.
+#       # # ----------------------------------------------------------
+
+#       # - name: Run Trivy Image (Gatekeeper)
+#       #   uses: aquasecurity/trivy-action@v0.35.0
+#       #   with:
+#       #     image-ref: donfortune1/baya-backend:test
+#       #     format: table
+#       #     severity: CRITICAL
+#       #     exit-code: "1"
+
+
+#       # ==========================================================
+#       # 7. INFRASTRUCTURE SECURITY - CHECKOV
+#       # ==========================================================
+
 #       - name: Run Checkov
 #         uses: bridgecrewio/checkov-action@master
 #         with:
 #           directory: .
 #           framework: dockerfile,secrets
 #           quiet: true
-#           soft_fail: true 
+#           soft_fail: true
+
+
+#       # ==========================================================
+#       # 8. PUSH BACKEND IMAGE
+#       #
+#       # Only push images from main branch pushes.
+#       # ==========================================================
 
 #       - name: Push Backend Image
-#         uses: docker/build-push-action@v5
+#         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+#         uses: docker/build-push-action@v6
 #         with:
 #           context: .
 #           file: ./dockerfile
@@ -307,9 +281,26 @@
 #           tags: |
 #             donfortune1/baya-backend:latest
 #             donfortune1/baya-backend:${{ steps.tag_version.outputs.new_tag }}
-      
-#       - name: Build and push Frontend
-#         uses: docker/build-push-action@v5
+
+
+#       # ==========================================================
+#       # 9. BUILD + PUSH FRONTEND
+#       # ==========================================================
+
+#       - name: Build Frontend Image
+#         if: github.event_name == 'pull_request'
+#         uses: docker/build-push-action@v6
+#         with:
+#           context: ./client
+#           file: ./client/dockerfile
+#           load: false
+#           push: false
+#           tags: donfortune1/baya-frontend:test
+
+
+#       - name: Build and Push Frontend
+#         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+#         uses: docker/build-push-action@v6
 #         with:
 #           context: ./client
 #           file: ./client/dockerfile
@@ -318,53 +309,129 @@
 #             donfortune1/baya-frontend:latest
 #             donfortune1/baya-frontend:${{ steps.tag_version.outputs.new_tag }}
 
+
+#       # ==========================================================
+#       # 10. GITHUB RELEASE
+#       # ==========================================================
+
 #       - name: Create GitHub Release
+#         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 #         uses: ncipollo/release-action@v1
 #         with:
 #           tag: ${{ steps.tag_version.outputs.new_tag }}
 #           name: Release ${{ steps.tag_version.outputs.new_tag }}
 #           body: "Automated release of version ${{ steps.tag_version.outputs.new_tag }}"
 #           token: ${{ secrets.GITHUB_TOKEN }}
+#           skipIfReleaseExists: true
 
-#   # 6. CONTINUOUS DEPLOYMENT
+
+
+#   # ============================================================
+#   # 11. CONTINUOUS DEPLOYMENT
+#   # ============================================================
+
 #   deploy:
+
 #     needs: security-and-build
+
 #     runs-on: ubuntu-latest
+
 #     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
 
+
 #     steps:
+
+#       # ----------------------------------------------------------
+#       # DEPLOY VIA SSH
+#       # ----------------------------------------------------------
+
 #       - name: Deploy via SSH to Server
 #         uses: appleboy/ssh-action@v1.0.3
 #         with:
 #           host: ${{ secrets.SERVER_HOST }}
 #           username: ${{ secrets.SERVER_USER }}
 #           key: ${{ secrets.SERVER_SSH_KEY }}
+
+#           # If your SSH server uses a non-standard port,
+#           # uncomment the following line:
+#           #
 #           # port: ${{ secrets.SERVER_PORT }}
+
 #           script: |
-#             echo "Pulling the latest Baya images..."
+
+#             echo "=========================================="
+#             echo "Starting Baya deployment..."
+#             echo "=========================================="
+
+
+#             # ----------------------------------------------------
+#             # Pull latest images
+#             # ----------------------------------------------------
+
+#             echo "Pulling latest backend image..."
+
 #             docker pull donfortune1/baya-backend:latest
+
+
+#             echo "Pulling latest frontend image..."
+
 #             docker pull donfortune1/baya-frontend:latest
 
-#             # -------------------------------------------------------------
-#             # OPTION A: If you are using Docker Compose on your server
-#             # -------------------------------------------------------------
-#             # cd /path/to/your/app
-#             # docker-compose down
-#             # docker-compose up -d
 
-#             # -------------------------------------------------------------
-#             # OPTION B: If you are running raw Docker containers
-#             # -------------------------------------------------------------
+#             # ----------------------------------------------------
+#             # Stop existing containers
+#             # ----------------------------------------------------
+
 #             echo "Stopping old containers..."
+
 #             docker stop baya-backend baya-frontend || true
+
+
+#             # ----------------------------------------------------
+#             # Remove existing containers
+#             # ----------------------------------------------------
+
+#             echo "Removing old containers..."
+
 #             docker rm baya-backend baya-frontend || true
-            
-#             echo "Starting new containers..."
-#             # Note: Adjust the exposed ports based on your environment needs
-#             docker run -d --name baya-backend -p 8080:8080 donfortune1/baya-backend:latest
-#             docker run -d --name baya-frontend -p 3000:3000 donfortune1/baya-frontend:latest
-            
+
+
+#             # ----------------------------------------------------
+#             # Start backend
+#             # ----------------------------------------------------
+
+#             echo "Starting new backend container..."
+
+#             docker run -d \
+#               --name baya-backend \
+#               -p 8080:8080 \
+#               donfortune1/baya-backend:latest
+
+
+#             # ----------------------------------------------------
+#             # Start frontend
+#             # ----------------------------------------------------
+
+#             echo "Starting new frontend container..."
+
+#             docker run -d \
+#               --name baya-frontend \
+#               -p 3000:3000 \
+#               donfortune1/baya-frontend:latest
+
+
+#             # ----------------------------------------------------
+#             # Verify containers
+#             # ----------------------------------------------------
+
+#             echo "Checking running containers..."
+
+#             docker ps
+
+
+#             echo "=========================================="
 #             echo "Deployment successful!"
+#             echo "=========================================="
 
 
 name: Pipeline
@@ -715,10 +782,18 @@ jobs:
 
       - name: Deploy via SSH to Server
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          # Define your secrets here so they map to standard environment variables
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+          # Add any other variables you need for tracing/caching (e.g., OTEL_EXPORTER_OTLP_ENDPOINT)
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
+          
+          # This tells the action to pass these specific variables into the SSH session
+          envs: MONGODB_URI,REDIS_URL
 
           # If your SSH server uses a non-standard port,
           # uncomment the following line:
@@ -730,6 +805,15 @@ jobs:
             echo "=========================================="
             echo "Starting Baya deployment..."
             echo "=========================================="
+
+            # ----------------------------------------------------
+            # Create .env file dynamically on the server
+            # ----------------------------------------------------
+            echo "Generating backend environment variables..."
+            cat <<EOF > .env_backend
+            MONGODB_URI=$MONGODB_URI
+            REDIS_URL=$REDIS_URL
+            EOF
 
 
             # ----------------------------------------------------
@@ -769,10 +853,11 @@ jobs:
             # ----------------------------------------------------
 
             echo "Starting new backend container..."
-
+            # Pass the dynamically generated .env file using --env-file
             docker run -d \
               --name baya-backend \
               -p 8080:8080 \
+              --env-file .env_backend \
               donfortune1/baya-backend:latest
 
 
